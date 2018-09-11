@@ -1,0 +1,13 @@
+[package]
+authors = ["Erik Johnston"]
+name = "rust-synapse-compress-state"
+version = "0.1.0"
+
+[dependencies]
+clap = "2.32.0"
+fallible-iterator = "0.1.5"
+postgres = "0.15.2"
+rayon = "1.0.2"
+
+[dependencies.rust-matrix-lib]
+git = "https://github.com/erikjohnston/rust-matrix-lib"
