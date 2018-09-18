@@ -8,7 +8,10 @@ This tool currently *does not* write to the database in any way, so should be
 safe to run. If the `-o` option is specified then SQL will be written to the
 given file that would change the tables to match the calculated state. (Note
 that if `-t` is given then each change to a particular state group is wrapped
-in a transaction)
+in a transaction).
+
+The tool will also ensure that the generated state deltas do give the same state
+as the existing state deltas.
 
 ## Algorithm
 
@@ -25,6 +28,10 @@ L2 <-------------------- L2 <---------- ...
 ```
 
 The sizes and number of levels used can be controlled via `-l`.
+
+**Note**: Increasing the sum of the sizes of levels will increase the time it
+takes for to query the full state of a given state group. By default Synapse
+attempts to keep this below 100.
 
 
 ## Example
