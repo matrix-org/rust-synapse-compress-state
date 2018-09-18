@@ -6,7 +6,6 @@ use std::collections::BTreeMap;
 
 use StateGroupEntry;
 
-
 /// Fetch the entries in state_groups_state (and their prev groups) for the
 /// given `room_id` by connecting to the postgres database at `db_url`.
 pub fn get_data_from_db(db_url: &str, room_id: &str) -> BTreeMap<i64, StateGroupEntry> {
@@ -69,7 +68,9 @@ fn get_initial_data_from_db(conn: &Connection, room_id: &str) -> BTreeMap<i64, S
     let mut state_group_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
 
     let pb = ProgressBar::new_spinner();
-    pb.set_style(ProgressStyle::default_spinner().template("{spinner} [{elapsed}] {pos}"));
+    pb.set_style(
+        ProgressStyle::default_spinner().template("{spinner} [{elapsed}] {pos} rows retrieved"),
+    );
     pb.enable_steady_tick(100);
 
     let mut num_rows = 0;
@@ -82,9 +83,11 @@ fn get_initial_data_from_db(conn: &Connection, room_id: &str) -> BTreeMap<i64, S
         let etype: Option<String> = row.get(2);
 
         if let Some(etype) = etype {
-            entry
-                .state_map
-                .insert(&etype, &row.get::<_, String>(3), row.get::<_, String>(4).into());
+            entry.state_map.insert(
+                &etype,
+                &row.get::<_, String>(3),
+                row.get::<_, String>(4).into(),
+            );
         }
 
         pb.inc(1);

@@ -17,6 +17,7 @@ mod database;
 use compressor::Compressor;
 
 use clap::{App, Arg};
+use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use rust_matrix_lib::state_map::StateMap;
 use string_cache::DefaultAtom as Atom;
@@ -152,6 +153,8 @@ fn main() {
 
     // Now we actually call the compression algorithm.
 
+    println!("Compressing state...");
+
     let compressor = Compressor::compress(&state_group_map, &level_sizes.0);
 
     let new_state_group_map = compressor.new_state_group_map;
@@ -235,6 +238,15 @@ fn main() {
         }
     }
 
+    println!("Checking that state maps match...");
+
+    let pb = ProgressBar::new(state_group_map.len() as u64);
+    pb.set_style(
+        ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
+    );
+    pb.set_message("state groups");
+    pb.enable_steady_tick(100);
+
     // Now let's iterate through and assert that the state for each group
     // matches between the two versions.
     state_group_map
@@ -242,6 +254,8 @@ fn main() {
         .try_for_each(|(sg, _)| {
             let expected = collapse_state_maps(&state_group_map, *sg);
             let actual = collapse_state_maps(&new_state_group_map, *sg);
+
+            pb.inc(1);
 
             if expected != actual {
                 println!("State Group: {}", sg);
@@ -252,6 +266,8 @@ fn main() {
                 Ok(())
             }
         }).expect("expected state to match");
+
+    pb.finish();
 
     println!("New state map matches old one");
 }

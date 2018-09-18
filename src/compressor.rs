@@ -14,14 +14,13 @@
 //!  ^--- L1 <--- L1 <--- L1  ^--- L1 <--- L1 <--- L1
 //! ```
 
-
+use indicatif::{ProgressBar, ProgressStyle};
 use rust_matrix_lib::state_map::StateMap;
 use string_cache::DefaultAtom as Atom;
 
 use std::collections::BTreeMap;
 
 use {collapse_state_maps, StateGroupEntry};
-
 
 /// Holds information about a particular level.
 struct Level {
@@ -77,7 +76,6 @@ impl Level {
     }
 }
 
-
 /// Keeps track of some statistics of a compression run.
 #[derive(Default)]
 pub struct Stats {
@@ -89,7 +87,6 @@ pub struct Stats {
     /// How many state groups we have changed.
     pub state_groups_changed: usize,
 }
-
 
 /// Attempts to compress a set of state deltas using the given level sizes.
 pub struct Compressor<'a> {
@@ -123,6 +120,13 @@ impl<'a> Compressor<'a> {
             panic!("Can only call `create_new_tree` once");
         }
 
+        let pb = ProgressBar::new(self.original_state_map.len() as u64);
+        pb.set_style(
+            ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
+        );
+        pb.set_message("state groups");
+        pb.enable_steady_tick(100);
+
         for (&state_group, entry) in self.original_state_map {
             let mut prev_state_group = None;
             for level in &mut self.levels {
@@ -149,7 +153,11 @@ impl<'a> Compressor<'a> {
                     state_map: delta,
                 },
             );
+
+            pb.inc(1);
         }
+
+        pb.finish();
     }
 
     /// Attempts to calculate the delta between two state groups.
