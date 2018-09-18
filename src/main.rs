@@ -9,6 +9,7 @@ extern crate indicatif;
 extern crate postgres;
 extern crate rayon;
 extern crate rust_matrix_lib;
+extern crate string_cache;
 
 mod compressor;
 mod database;
@@ -18,6 +19,7 @@ use compressor::Compressor;
 use clap::{App, Arg};
 use rayon::prelude::*;
 use rust_matrix_lib::state_map::StateMap;
+use string_cache::DefaultAtom as Atom;
 
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -29,14 +31,14 @@ use std::str::FromStr;
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct StateGroupEntry {
     prev_state_group: Option<i64>,
-    state_map: StateMap<String>,
+    state_map: StateMap<Atom>,
 }
 
 /// Gets the full state for a given group from the map (of deltas)
 pub fn collapse_state_maps(
     map: &BTreeMap<i64, StateGroupEntry>,
     state_group: i64,
-) -> StateMap<String> {
+) -> StateMap<Atom> {
     let mut entry = &map[&state_group];
     let mut state_map = StateMap::new();
 

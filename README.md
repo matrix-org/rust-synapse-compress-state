@@ -34,10 +34,10 @@ takes for to query the full state of a given state group. By default Synapse
 attempts to keep this below 100.
 
 
-## Example
+## Example usage
 
 ```
-$ synapse-compress-state -p "postgresql://localhost/synapse" -r '!some_room:example.com'
+$ synapse-compress-state -p "postgresql://localhost/synapse" -r '!some_room:example.com' -o out.sql -t
 Fetching state from DB for room '!some_room:example.com'...
 Got initial state from database. Checking for any missing state groups...
 Number of state groups: 73904
@@ -48,4 +48,7 @@ Compression Statistics:
   Number of compressed rows caused by the above: 17092
   Number of state groups changed: 2748
 New state map matches old one
+
+# It's finished, so we can now go and rewrite the DB
+$ psql synapse < out.data
 ```

@@ -16,6 +16,7 @@
 
 
 use rust_matrix_lib::state_map::StateMap;
+use string_cache::DefaultAtom as Atom;
 
 use std::collections::BTreeMap;
 
@@ -159,7 +160,7 @@ impl<'a> Compressor<'a> {
     /// group that can be used as a base for a delta.
     ///
     /// Returns the state map and the actual base state group (if any) used.
-    fn get_delta(&mut self, prev_sg: Option<i64>, sg: i64) -> (StateMap<String>, Option<i64>) {
+    fn get_delta(&mut self, prev_sg: Option<i64>, sg: i64) -> (StateMap<Atom>, Option<i64>) {
         let state_map = collapse_state_maps(&self.original_state_map, sg);
 
         let mut prev_sg = if let Some(prev_sg) = prev_sg {

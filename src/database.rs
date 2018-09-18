@@ -84,7 +84,7 @@ fn get_initial_data_from_db(conn: &Connection, room_id: &str) -> BTreeMap<i64, S
         if let Some(etype) = etype {
             entry
                 .state_map
-                .insert(&etype, &row.get::<_, String>(3), row.get(4));
+                .insert(&etype, &row.get::<_, String>(3), row.get::<_, String>(4).into());
         }
 
         pb.inc(1);
