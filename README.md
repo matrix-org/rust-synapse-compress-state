@@ -2,22 +2,43 @@
 
 An experimental tool that reads in the rows from `state_groups_state` and
 `state_group_edges` tables for a particular room and calculates the changes that
-could be made that (hopefully) will signifcantly reduce the number of rows.
+could be made that (hopefully) will significantly reduce the number of rows.
 
 This tool currently *does not* write to the database in any way, so should be
-safe to run.
+safe to run. If the `-o` option is specified then SQL will be written to the
+given file that would change the tables to match the calculated state. (Note
+that if `-t` is given then each change to a particular state group is wrapped
+in a transaction)
+
+## Algorithm
+
+The algorithm works by attempting to create a tree of deltas, produced by
+appending state groups to different "levels". Each level has a maximum size, where
+each state group is appended to the lowest level that is not full.
+
+This produces a graph that looks approximately like the following, in the case
+of having two levels with the bottom level (L1) having a maximum size of 3:
+
+```
+L2 <-------------------- L2 <---------- ...
+^--- L1 <--- L1 <--- L1  ^--- L1 <--- L1 <--- L1
+```
+
+The sizes and number of levels used can be controlled via `-l`.
 
 
 ## Example
 
 ```
-$ cargo run --release -- -p "postgresql://localhost/synapse" -r '!some_room:example.com'
-   Compiling rust-synapse-compress-state v0.1.0 (file:///home/erikj/git/rust-synapse-compress-state)
-    Finished release [optimized] target(s) in 2.39s
-     Running `target/release/rust-synapse-compress-state -p 'postgresql://localhost/synapse' -r '!some_room:example.com'`
-Missing 11 state groups
-Number of entries: 25694
-Number of rows: 356650
-Number of rows compressed: 41068
+$ synapse-compress-state -p "postgresql://localhost/synapse" -r '!some_room:example.com'
+Fetching state from DB for room '!some_room:example.com'...
+Got initial state from database. Checking for any missing state groups...
+Number of state groups: 73904
+Number of rows in current table: 2240043
+Number of rows after compression: 165754 (7.40%)
+Compression Statistics:
+  Number of forced resets due to lacking prev: 34
+  Number of compressed rows caused by the above: 17092
+  Number of state groups changed: 2748
 New state map matches old one
 ```
