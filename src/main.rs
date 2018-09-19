@@ -192,6 +192,15 @@ fn main() {
     // group in a transaction.
 
     if let Some(output) = &mut output_file {
+        println!("Writing changes...");
+
+        let pb = ProgressBar::new(state_group_map.len() as u64);
+        pb.set_style(
+            ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
+        );
+        pb.set_message("state groups");
+        pb.enable_steady_tick(100);
+
         for (sg, old_entry) in &state_group_map {
             let new_entry = &new_state_group_map[sg];
 
@@ -234,8 +243,13 @@ fn main() {
                     writeln!(output, "COMMIT;");
                 }
                 writeln!(output);
+
             }
+
+            pb.inc(1);
         }
+
+        pb.finish();
     }
 
     println!("Checking that state maps match...");
