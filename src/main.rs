@@ -126,15 +126,25 @@ fn main() {
                 .help("File to output the changes to in SQL")
                 .takes_value(true),
         ).arg(
-            Arg::with_name("individual_transactions")
+            Arg::with_name("transactions")
                 .short("t")
-                .help("Whether to wrap each state group change in a transaction, when writing to file")
+                .help("Whether to wrap each state group change in a transaction")
                 .requires("output_file"),
         ).arg(
             Arg::with_name("level_sizes")
                 .short("l")
                 .value_name("LEVELS")
-                .help("Sizes of each new level in the compression algorithm, as a comma separate list")
+                .help("Sizes of each new level in the compression algorithm, as a comma separated list.")
+                .long_help(concat!(
+                    "Sizes of each new level in the compression algorithm, as a comma separated list.",
+                    " The first entry in the list is for the lowest, most granular level,",
+                    " with each subsequent entry being for the next highest level.",
+                    " The number of entries in the list determines the number of levels",
+                    " that will be used.",
+                    "\nThe sum of the sizes of the levels effect the performance of fetching the state",
+                    " from the database, as the sum of the sizes is the upper bound on number of",
+                    " iterations needed to fetch a given set of state.",
+                ))
                 .default_value("100,50,25")
                 .takes_value(true),
         ).get_matches();
@@ -150,7 +160,7 @@ fn main() {
         .value_of("room_id")
         .expect("room_id should be required since no file");
 
-    let individual_transactions = matches.is_present("individual_transactions");
+    let transactions = matches.is_present("transactions");
 
     let level_sizes = value_t_or_exit!(matches, "level_sizes", LevelSizes);
 
@@ -203,8 +213,8 @@ fn main() {
     );
 
     // If we are given an output file, we output the changes as SQL. If the
-    // `individual_transactions` argument is set we wrap each change to a state
-    // group in a transaction.
+    // `transactions` argument is set we wrap each change to a state group in a
+    // transaction.
 
     if let Some(output) = &mut output_file {
         println!("Writing changes...");
@@ -220,7 +230,7 @@ fn main() {
             let new_entry = &new_state_group_map[sg];
 
             if old_entry != new_entry {
-                if individual_transactions {
+                if transactions {
                     writeln!(output, "BEGIN;");
                 }
 
@@ -254,7 +264,7 @@ fn main() {
                     writeln!(output, ";");
                 }
 
-                if individual_transactions {
+                if transactions {
                     writeln!(output, "COMMIT;");
                 }
                 writeln!(output);
