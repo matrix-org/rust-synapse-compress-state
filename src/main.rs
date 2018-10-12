@@ -23,7 +23,7 @@ extern crate fallible_iterator;
 extern crate indicatif;
 extern crate postgres;
 extern crate rayon;
-extern crate rust_matrix_lib;
+extern crate state_map;
 extern crate string_cache;
 
 mod compressor;
@@ -34,7 +34,7 @@ use compressor::Compressor;
 use clap::{App, Arg};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
-use rust_matrix_lib::state_map::StateMap;
+use state_map::StateMap;
 use string_cache::DefaultAtom as Atom;
 
 use std::collections::BTreeMap;

@@ -29,7 +29,7 @@
 //! ```
 
 use indicatif::{ProgressBar, ProgressStyle};
-use rust_matrix_lib::state_map::StateMap;
+use state_map::StateMap;
 use string_cache::DefaultAtom as Atom;
 
 use std::collections::BTreeMap;
