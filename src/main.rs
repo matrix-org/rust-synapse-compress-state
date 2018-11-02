@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 //! This is a tool that attempts to further compress state maps within a
 //! Synapse instance's database. Specifically, it aims to reduce the number of
 //! rows that a given room takes up in the `state_groups_state` table.
@@ -22,6 +21,7 @@ extern crate clap;
 extern crate fallible_iterator;
 extern crate indicatif;
 extern crate postgres;
+extern crate rand;
 extern crate rayon;
 extern crate state_map;
 extern crate string_cache;
@@ -30,6 +30,7 @@ mod compressor;
 mod database;
 
 use compressor::Compressor;
+use database::PGEscapse;
 
 use clap::{App, Arg};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -259,7 +260,15 @@ fn main() {
                         } else {
                             write!(output, "    ,");
                         }
-                        writeln!(output, "({}, '{}', '{}', '{}', '{}')", sg, room_id, t, s, e);
+                        writeln!(
+                            output,
+                            "({}, {}, {}, {}, {})",
+                            sg,
+                            PGEscapse(room_id),
+                            PGEscapse(t),
+                            PGEscapse(s),
+                            PGEscapse(e)
+                        );
                     }
                     writeln!(output, ";");
                 }
@@ -268,7 +277,6 @@ fn main() {
                     writeln!(output, "COMMIT;");
                 }
                 writeln!(output);
-
             }
 
             pb.inc(1);
@@ -304,7 +312,8 @@ fn main() {
             } else {
                 Ok(())
             }
-        }).expect("expected state to match");
+        })
+        .expect("expected state to match");
 
     pb.finish();
 

@@ -264,7 +264,8 @@ fn test_new_map() {
         (10, 9),
         (11, 10),
         (13, 12),
-    ].into_iter()
+    ]
+    .into_iter()
     .collect();
 
     for sg in 0i64..=13i64 {
