@@ -20,6 +20,7 @@
 extern crate clap;
 extern crate fallible_iterator;
 extern crate indicatif;
+extern crate jemallocator;
 extern crate postgres;
 extern crate rand;
 extern crate rayon;
@@ -28,6 +29,9 @@ extern crate string_cache;
 
 mod compressor;
 mod database;
+
+#[global_allocator]
+static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
 use compressor::Compressor;
 use database::PGEscapse;
