@@ -236,33 +236,35 @@ fn main() {
 
             if old_entry != new_entry {
                 if transactions {
-                    writeln!(output, "BEGIN;");
+                    writeln!(output, "BEGIN;").unwrap();
                 }
 
                 writeln!(
                     output,
                     "DELETE FROM state_group_edges WHERE state_group = {};",
                     sg
-                );
+                )
+                .unwrap();
 
                 if let Some(prev_sg) = new_entry.prev_state_group {
-                    writeln!(output, "INSERT INTO state_group_edges (state_group, prev_state_group) VALUES ({}, {});", sg, prev_sg);
+                    writeln!(output, "INSERT INTO state_group_edges (state_group, prev_state_group) VALUES ({}, {});", sg, prev_sg).unwrap();
                 }
 
                 writeln!(
                     output,
                     "DELETE FROM state_groups_state WHERE state_group = {};",
                     sg
-                );
+                )
+                .unwrap();
                 if new_entry.state_map.len() > 0 {
-                    writeln!(output, "INSERT INTO state_groups_state (state_group, room_id, type, state_key, event_id) VALUES");
+                    writeln!(output, "INSERT INTO state_groups_state (state_group, room_id, type, state_key, event_id) VALUES").unwrap();
                     let mut first = true;
                     for ((t, s), e) in new_entry.state_map.iter() {
                         if first {
-                            write!(output, "     ");
+                            write!(output, "     ").unwrap();
                             first = false;
                         } else {
-                            write!(output, "    ,");
+                            write!(output, "    ,").unwrap();
                         }
                         writeln!(
                             output,
@@ -272,15 +274,16 @@ fn main() {
                             PGEscapse(t),
                             PGEscapse(s),
                             PGEscapse(e)
-                        );
+                        )
+                        .unwrap();
                     }
-                    writeln!(output, ";");
+                    writeln!(output, ";").unwrap();
                 }
 
                 if transactions {
-                    writeln!(output, "COMMIT;");
+                    writeln!(output, "COMMIT;").unwrap();
                 }
-                writeln!(output);
+                writeln!(output).unwrap();
             }
 
             pb.inc(1);
