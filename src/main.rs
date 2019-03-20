@@ -125,6 +125,12 @@ fn main() {
                 .takes_value(true)
                 .required(true),
         ).arg(
+            Arg::with_name("max_state_group")
+                .short("s")
+                .help("The maximum state group to process up to")
+                .takes_value(true)
+                .required(false),
+        ).arg(
             Arg::with_name("output_file")
                 .short("o")
                 .value_name("FILE")
@@ -161,9 +167,14 @@ fn main() {
     let mut output_file = matches
         .value_of("output_file")
         .map(|path| File::create(path).unwrap());
+
     let room_id = matches
         .value_of("room_id")
         .expect("room_id should be required since no file");
+
+    let max_state_group = matches
+        .value_of("max_state_group")
+        .map(|s| s.parse().expect("max_state_group must be an integer"));
 
     let transactions = matches.is_present("transactions");
 
@@ -171,7 +182,7 @@ fn main() {
 
     // First we need to get the current state groups
     println!("Fetching state from DB for room '{}'...", room_id);
-    let state_group_map = database::get_data_from_db(db_url, room_id);
+    let state_group_map = database::get_data_from_db(db_url, room_id, max_state_group);
 
     println!("Number of state groups: {}", state_group_map.len());
 

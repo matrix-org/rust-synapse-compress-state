@@ -26,10 +26,14 @@ use StateGroupEntry;
 
 /// Fetch the entries in state_groups_state (and their prev groups) for the
 /// given `room_id` by connecting to the postgres database at `db_url`.
-pub fn get_data_from_db(db_url: &str, room_id: &str) -> BTreeMap<i64, StateGroupEntry> {
+pub fn get_data_from_db(
+    db_url: &str,
+    room_id: &str,
+    max_state_group: Option<i64>,
+) -> BTreeMap<i64, StateGroupEntry> {
     let conn = Connection::connect(db_url, TlsMode::None).unwrap();
 
-    let mut state_group_map = get_initial_data_from_db(&conn, room_id);
+    let mut state_group_map = get_initial_data_from_db(&conn, room_id, max_state_group);
 
     println!("Got initial state from database. Checking for any missing state groups...");
 
@@ -69,21 +73,36 @@ pub fn get_data_from_db(db_url: &str, room_id: &str) -> BTreeMap<i64, StateGroup
 
 /// Fetch the entries in state_groups_state (and their prev groups) for the
 /// given `room_id` by fetching all state with the given `room_id`.
-fn get_initial_data_from_db(conn: &Connection, room_id: &str) -> BTreeMap<i64, StateGroupEntry> {
-    let stmt = conn
-        .prepare(
-            r#"
-                SELECT m.id, prev_state_group, type, state_key, s.event_id
-                FROM state_groups AS m
-                LEFT JOIN state_groups_state AS s ON (m.id = s.state_group)
-                LEFT JOIN state_group_edges AS e ON (m.id = e.state_group)
-                WHERE m.room_id = $1
-            "#,
-        )
-        .unwrap();
+fn get_initial_data_from_db(
+    conn: &Connection,
+    room_id: &str,
+    max_state_group: Option<i64>,
+) -> BTreeMap<i64, StateGroupEntry> {
+    let sql = format!(
+        r#"
+        SELECT m.id, prev_state_group, type, state_key, s.event_id
+        FROM state_groups AS m
+        LEFT JOIN state_groups_state AS s ON (m.id = s.state_group)
+        LEFT JOIN state_group_edges AS e ON (m.id = e.state_group)
+        WHERE m.room_id = $1 {}
+    "#,
+        if max_state_group.is_some() {
+            "AND state_group <= $2"
+        } else {
+            ""
+        }
+    );
+
+    let stmt = conn.prepare(&sql).unwrap();
 
     let trans = conn.transaction().unwrap();
-    let mut rows = stmt.lazy_query(&trans, &[&room_id], 1000).unwrap();
+
+    let mut rows = if let Some(s) = max_state_group {
+        stmt.lazy_query(&trans, &[&room_id, &s], 1000)
+    } else {
+        stmt.lazy_query(&trans, &[&room_id], 1000)
+    }
+    .unwrap();
 
     let mut state_group_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
 
