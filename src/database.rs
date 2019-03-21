@@ -87,7 +87,7 @@ fn get_initial_data_from_db(
         WHERE m.room_id = $1 {}
     "#,
         if max_state_group.is_some() {
-            "AND state_group <= $2"
+            "AND m.id <= $2"
         } else {
             ""
         }
