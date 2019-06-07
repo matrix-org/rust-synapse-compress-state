@@ -22,7 +22,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt;
 
-use StateGroupEntry;
+use crate::StateGroupEntry;
 
 /// Fetch the entries in state_groups_state (and their prev groups) for the
 /// given `room_id` by connecting to the postgres database at `db_url`.

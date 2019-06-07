@@ -1,6 +1,7 @@
 [package]
 authors = ["Erik Johnston"]
 description = "A tool to compress some state in a Synapse instance's database"
+edition = "2018"
 name = "synapse-compress-state"
 version = "0.1.0"
 
