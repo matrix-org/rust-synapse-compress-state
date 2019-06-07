@@ -267,7 +267,7 @@ fn main() {
                     sg
                 )
                 .unwrap();
-                if new_entry.state_map.len() > 0 {
+                if !new_entry.state_map.is_empty() {
                     writeln!(output, "INSERT INTO state_groups_state (state_group, room_id, type, state_key, event_id) VALUES").unwrap();
                     let mut first = true;
                     for ((t, s), e) in new_entry.state_map.iter() {
