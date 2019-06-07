@@ -94,7 +94,7 @@ impl FromStr for LevelSizes {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut sizes = Vec::new();
 
-        for size_str in s.split(",") {
+        for size_str in s.split(',') {
             let size: usize = size_str
                 .parse()
                 .map_err(|_| "Not a comma separated list of numbers")?;

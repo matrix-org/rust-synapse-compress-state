@@ -7,10 +7,10 @@ version = "0.1.0"
 
 [dependencies]
 clap = "2.32.0"
-fallible-iterator = "0.1.5"
+fallible-iterator = "0.2"
 indicatif = "0.11.0"
 jemallocator = "0.3.0"
-postgres = "0.15.2"
+postgres = "0.16.0-rc"
 rand = "0.6.0"
 rayon = "1.0.2"
 string_cache = "0.7.3"

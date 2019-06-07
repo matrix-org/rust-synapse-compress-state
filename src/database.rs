@@ -14,7 +14,7 @@
 
 use fallible_iterator::FallibleIterator;
 use indicatif::{ProgressBar, ProgressStyle};
-use postgres::{Connection, TlsMode};
+use postgres::{Client, NoTls};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 
@@ -31,9 +31,9 @@ pub fn get_data_from_db(
     room_id: &str,
     max_state_group: Option<i64>,
 ) -> BTreeMap<i64, StateGroupEntry> {
-    let conn = Connection::connect(db_url, TlsMode::None).unwrap();
+    let mut client = Client::connect(db_url, NoTls).unwrap();
 
-    let mut state_group_map = get_initial_data_from_db(&conn, room_id, max_state_group);
+    let mut state_group_map = get_initial_data_from_db(&mut client, room_id, max_state_group);
 
     println!("Got initial state from database. Checking for any missing state groups...");
 
@@ -64,7 +64,7 @@ pub fn get_data_from_db(
 
         println!("Missing {} state groups", missing_sgs.len());
 
-        let map = get_missing_from_db(&conn, &missing_sgs);
+        let map = get_missing_from_db(&mut client, &missing_sgs);
         state_group_map.extend(map.into_iter());
     }
 
@@ -74,37 +74,17 @@ pub fn get_data_from_db(
 /// Fetch the entries in state_groups_state (and their prev groups) for the
 /// given `room_id` by fetching all state with the given `room_id`.
 fn get_initial_data_from_db(
-    conn: &Connection,
+    client: &mut Client,
     room_id: &str,
     max_state_group: Option<i64>,
 ) -> BTreeMap<i64, StateGroupEntry> {
-    let sql = format!(
-        r#"
+    let sql = r#"
         SELECT m.id, prev_state_group, type, state_key, s.event_id
         FROM state_groups AS m
         LEFT JOIN state_groups_state AS s ON (m.id = s.state_group)
         LEFT JOIN state_group_edges AS e ON (m.id = e.state_group)
-        WHERE m.room_id = $1 {}
-    "#,
-        if max_state_group.is_some() {
-            "AND m.id <= $2"
-        } else {
-            ""
-        }
-    );
-
-    let stmt = conn.prepare(&sql).unwrap();
-
-    let trans = conn.transaction().unwrap();
-
-    let mut rows = if let Some(s) = max_state_group {
-        stmt.lazy_query(&trans, &[&room_id, &s], 1000)
-    } else {
-        stmt.lazy_query(&trans, &[&room_id], 1000)
-    }
-    .unwrap();
-
-    let mut state_group_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        WHERE m.room_id = $1
+    "#;
 
     let pb = ProgressBar::new_spinner();
     pb.set_style(
@@ -113,15 +93,20 @@ fn get_initial_data_from_db(
     pb.enable_steady_tick(100);
 
     let mut num_rows = 0;
-    while let Some(row) = rows.next().unwrap() {
-        let state_group = row.get(0);
+    let mut state_group_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
 
-        let entry = state_group_map.entry(state_group).or_default();
+    if let Some(s) = max_state_group {
+        client.query_iter(format!("{} AND m.id <= $2", sql).as_str(), &[&room_id, &s])
+    } else {
+        client.query_iter(sql, &[&room_id])
+    }
+    .unwrap()
+    .for_each(|row| {
+        let entry = state_group_map.entry(row.get(0)).or_default();
 
         entry.prev_state_group = row.get(1);
-        let etype: Option<String> = row.get(2);
 
-        if let Some(etype) = etype {
+        if let Some(etype) = row.get::<_, Option<String>>(2) {
             entry.state_map.insert(
                 &etype,
                 &row.get::<_, String>(3),
@@ -131,7 +116,9 @@ fn get_initial_data_from_db(
 
         pb.inc(1);
         num_rows += 1;
-    }
+        Ok(())
+    })
+    .unwrap();
 
     pb.set_length(num_rows);
     pb.finish();
@@ -140,31 +127,22 @@ fn get_initial_data_from_db(
 }
 
 /// Get any missing state groups from the database
-fn get_missing_from_db(conn: &Connection, missing_sgs: &[i64]) -> BTreeMap<i64, StateGroupEntry> {
-    let stmt = conn
-        .prepare(
-            r#"
-                SELECT state_group, prev_state_group
-                FROM state_group_edges
-                WHERE state_group = ANY($1)
-            "#,
-        )
-        .unwrap();
-    let trans = conn.transaction().unwrap();
+fn get_missing_from_db(client: &mut Client, missing_sgs: &[i64]) -> BTreeMap<i64, StateGroupEntry> {
+    let sql = r#"
+        SELECT state_group, prev_state_group
+        FROM state_group_edges
+        WHERE state_group = ANY($1)
+    "#;
 
-    let mut rows = stmt.lazy_query(&trans, &[&missing_sgs], 100).unwrap();
+    client
+        .query_iter(sql, &[&missing_sgs])
+        .unwrap()
+        .fold(BTreeMap::<_, StateGroupEntry>::new(), |mut map, row| {
+            map.entry(row.get(0)).or_default().prev_state_group = row.get(1);
 
-    let mut state_group_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
-
-    while let Some(row) = rows.next().unwrap() {
-        let state_group = row.get(0);
-
-        let entry = state_group_map.entry(state_group).or_default();
-
-        entry.prev_state_group = row.get(1);
-    }
-
-    state_group_map
+            Ok(map)
+        })
+        .unwrap()
 }
 
 /// Helper function that escapes the wrapped text when writing SQL
