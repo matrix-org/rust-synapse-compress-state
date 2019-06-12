@@ -120,6 +120,13 @@ fn main() {
                 .takes_value(true)
                 .required(false),
         ).arg(
+            Arg::with_name("min_saved_rows")
+                .short("m")
+                .value_name("COUNT")
+                .help("Suppress output if fewer than COUNT rows would be saved")
+                .takes_value(true)
+                .required(false),
+        ).arg(
             Arg::with_name("output_file")
                 .short("o")
                 .value_name("FILE")
@@ -164,6 +171,10 @@ fn main() {
     let max_state_group = matches
         .value_of("max_state_group")
         .map(|s| s.parse().expect("max_state_group must be an integer"));
+
+    let min_saved_rows = matches
+        .value_of("min_saved_rows")
+        .map(|v| v.parse().expect("COUNT must be an integer"));
 
     let transactions = matches.is_present("transactions");
 
@@ -216,6 +227,17 @@ fn main() {
         "  Number of state groups changed: {}",
         compressor.stats.state_groups_changed
     );
+
+    if let Some(min) = min_saved_rows {
+        let saving = (original_summed_size - compressed_summed_size) as i32;
+        if saving < min {
+            println!(
+                "Only {} rows would be saved by this compression. Skipping output.",
+                saving
+            );
+            return;
+        }
+    }
 
     // If we are given an output file, we output the changes as SQL. If the
     // `transactions` argument is set we wrap each change to a state group in a
