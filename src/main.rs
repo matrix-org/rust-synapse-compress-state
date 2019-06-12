@@ -115,6 +115,7 @@ fn main() {
         ).arg(
             Arg::with_name("max_state_group")
                 .short("s")
+                .value_name("MAX_STATE_GROUP")
                 .help("The maximum state group to process up to")
                 .takes_value(true)
                 .required(false),
