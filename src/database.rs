@@ -43,7 +43,7 @@ pub fn get_data_from_db(
     // Since the returned groups may themselves reference groups we don't have,
     // we need to do this recursively until we don't find any more missing.
     loop {
-        let missing_sgs: Vec<_> = state_group_map
+        let mut missing_sgs: Vec<_> = state_group_map
             .iter()
             .filter_map(|(_sg, entry)| {
                 if let Some(prev_sg) = entry.prev_state_group {
@@ -59,8 +59,12 @@ pub fn get_data_from_db(
             .collect();
 
         if missing_sgs.is_empty() {
+            println!("No missing state groups");
             break;
         }
+
+        missing_sgs.sort_unstable();
+        missing_sgs.dedup();
 
         println!("Missing {} state groups", missing_sgs.len());
 
@@ -154,13 +158,16 @@ fn get_missing_from_db(conn: &Connection, missing_sgs: &[i64]) -> BTreeMap<i64, 
 
     let mut rows = stmt.lazy_query(&trans, &[&missing_sgs], 100).unwrap();
 
-    let mut state_group_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+    // initialise the map with empty entries (the missing group may not
+    // have a prev_state_group either)
+    let mut state_group_map: BTreeMap<i64, StateGroupEntry> =
+        missing_sgs.iter()
+        .map(|sg| (*sg, StateGroupEntry::default()))
+        .collect();
 
     while let Some(row) = rows.next().unwrap() {
         let state_group = row.get(0);
-
-        let entry = state_group_map.entry(state_group).or_default();
-
+        let entry = state_group_map.get_mut(&state_group).unwrap();
         entry.prev_state_group = row.get(1);
     }
 
