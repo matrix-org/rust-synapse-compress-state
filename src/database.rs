@@ -103,7 +103,6 @@ fn get_initial_data_from_db(
     );
     pb.enable_steady_tick(100);
 
-    let mut num_rows = 0;
     while let Some(row) = rows.next().unwrap() {
         let entry = state_group_map.entry(row.get(0)).or_default();
 
@@ -118,10 +117,9 @@ fn get_initial_data_from_db(
         }
 
         pb.inc(1);
-        num_rows += 1;
     }
 
-    pb.set_length(num_rows);
+    pb.set_length(pb.position());
     pb.finish();
 
     state_group_map
