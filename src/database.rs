@@ -77,25 +77,21 @@ fn get_initial_data_from_db(
     room_id: &str,
     max_state_group: Option<i64>,
 ) -> BTreeMap<i64, StateGroupEntry> {
-    let sql = format!(
-        r#"
+    let sql = r#"
         SELECT m.id, prev_state_group, type, state_key, s.event_id
         FROM state_groups AS m
         LEFT JOIN state_groups_state AS s ON (m.id = s.state_group)
         LEFT JOIN state_group_edges AS e ON (m.id = e.state_group)
-        WHERE m.room_id = $1 {}
-    "#,
-        if max_state_group.is_some() {
-            "AND m.id <= $2"
-        } else {
-            ""
-        }
-    );
+        WHERE m.room_id = $1
+    "#;
 
     let mut rows = if let Some(s) = max_state_group {
-        client.query_raw(&sql[..], vec![&room_id as _, &s as _])
+        client.query_raw(
+            format!(r"{} AND m.id <= $2", sql).as_str(),
+            vec![&room_id as _, &s as _],
+        )
     } else {
-        client.query_raw(&sql[..], iter::once(&room_id as _))
+        client.query_raw(sql, iter::once(&room_id as _))
     }
     .unwrap();
 
@@ -109,14 +105,11 @@ fn get_initial_data_from_db(
 
     let mut num_rows = 0;
     while let Some(row) = rows.next().unwrap() {
-        let state_group = row.get(0);
-
-        let entry = state_group_map.entry(state_group).or_default();
+        let entry = state_group_map.entry(row.get(0)).or_default();
 
         entry.prev_state_group = row.get(1);
-        let etype: Option<String> = row.get(2);
 
-        if let Some(etype) = etype {
+        if let Some(etype) = row.get::<_, Option<String>>(2) {
             entry.state_map.insert(
                 &etype,
                 &row.get::<_, String>(3),
