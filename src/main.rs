@@ -40,12 +40,8 @@ use clap::{App, Arg};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use state_map::StateMap;
+use std::{collections::BTreeMap, fs::File, io::Write, str::FromStr};
 use string_cache::DefaultAtom as Atom;
-
-use std::collections::BTreeMap;
-use std::fs::File;
-use std::io::Write;
-use std::str::FromStr;
 
 /// An entry for a state group. Consists of an (optional) previous group and the
 /// delta from that previous group (or the full state if no previous group)

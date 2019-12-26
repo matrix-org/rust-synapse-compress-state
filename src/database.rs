@@ -15,12 +15,8 @@
 use fallible_iterator::FallibleIterator;
 use indicatif::{ProgressBar, ProgressStyle};
 use postgres::{Connection, TlsMode};
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
-
-use std::borrow::Cow;
-use std::collections::BTreeMap;
-use std::fmt;
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use std::{borrow::Cow, collections::BTreeMap, fmt};
 
 use StateGroupEntry;
 
@@ -160,8 +156,8 @@ fn get_missing_from_db(conn: &Connection, missing_sgs: &[i64]) -> BTreeMap<i64, 
 
     // initialise the map with empty entries (the missing group may not
     // have a prev_state_group either)
-    let mut state_group_map: BTreeMap<i64, StateGroupEntry> =
-        missing_sgs.iter()
+    let mut state_group_map: BTreeMap<i64, StateGroupEntry> = missing_sgs
+        .iter()
         .map(|sg| (*sg, StateGroupEntry::default()))
         .collect();
 

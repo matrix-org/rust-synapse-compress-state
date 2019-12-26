@@ -30,11 +30,11 @@
 
 use indicatif::{ProgressBar, ProgressStyle};
 use state_map::StateMap;
+use std::collections::BTreeMap;
 use string_cache::DefaultAtom as Atom;
 
-use std::collections::BTreeMap;
-
-use {collapse_state_maps, StateGroupEntry};
+use collapse_state_maps;
+use StateGroupEntry;
 
 /// Holds information about a particular level.
 struct Level {
