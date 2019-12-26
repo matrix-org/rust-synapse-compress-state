@@ -23,7 +23,7 @@ mod database;
 static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
 use compressor::Compressor;
-use database::PGEscapse;
+use database::PGEscape;
 
 use clap::{
     crate_authors, crate_description, crate_name, crate_version, value_t_or_exit, App, Arg,
@@ -269,10 +269,10 @@ fn main() {
                             output,
                             "({}, {}, {}, {}, {})",
                             sg,
-                            PGEscapse(room_id),
-                            PGEscapse(t),
-                            PGEscapse(s),
-                            PGEscapse(e)
+                            PGEscape(room_id),
+                            PGEscape(t),
+                            PGEscape(s),
+                            PGEscape(e)
                         )
                         .unwrap();
                     }

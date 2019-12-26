@@ -164,9 +164,9 @@ fn get_missing_from_db(client: &mut Client, missing_sgs: &[i64]) -> BTreeMap<i64
 }
 
 /// Helper function that escapes the wrapped text when writing SQL
-pub struct PGEscapse<'a>(pub &'a str);
+pub struct PGEscape<'a>(pub &'a str);
 
-impl<'a> fmt::Display for PGEscapse<'a> {
+impl<'a> fmt::Display for PGEscape<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut delim = Cow::from("$$");
         while self.0.contains(&delim as &str) {
@@ -181,12 +181,12 @@ impl<'a> fmt::Display for PGEscapse<'a> {
 
 #[test]
 fn test_pg_escape() {
-    let s = format!("{}", PGEscapse("test"));
+    let s = format!("{}", PGEscape("test"));
     assert_eq!(s, "$$test$$");
 
     let dodgy_string = "test$$ing";
 
-    let s = format!("{}", PGEscapse(dodgy_string));
+    let s = format!("{}", PGEscape(dodgy_string));
 
     // prefix and suffixes should match
     let start_pos = s.find(dodgy_string).expect("expected to find dodgy string");
