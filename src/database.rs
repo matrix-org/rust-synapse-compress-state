@@ -18,7 +18,7 @@ use postgres::{Connection, TlsMode};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use std::{borrow::Cow, collections::BTreeMap, fmt};
 
-use StateGroupEntry;
+use super::StateGroupEntry;
 
 /// Fetch the entries in state_groups_state (and their prev groups) for the
 /// given `room_id` by connecting to the postgres database at `db_url`.
@@ -174,7 +174,7 @@ fn get_missing_from_db(conn: &Connection, missing_sgs: &[i64]) -> BTreeMap<i64, 
 pub struct PGEscapse<'a>(pub &'a str);
 
 impl<'a> fmt::Display for PGEscapse<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut delim = Cow::from("$$");
         while self.0.contains(&delim as &str) {
             let s: String = thread_rng().sample_iter(&Alphanumeric).take(10).collect();

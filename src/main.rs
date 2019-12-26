@@ -16,17 +16,6 @@
 //! Synapse instance's database. Specifically, it aims to reduce the number of
 //! rows that a given room takes up in the `state_groups_state` table.
 
-#[macro_use]
-extern crate clap;
-extern crate fallible_iterator;
-extern crate indicatif;
-extern crate jemallocator;
-extern crate postgres;
-extern crate rand;
-extern crate rayon;
-extern crate state_map;
-extern crate string_cache;
-
 mod compressor;
 mod database;
 
@@ -36,7 +25,9 @@ static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
 use compressor::Compressor;
 use database::PGEscapse;
 
-use clap::{App, Arg};
+use clap::{
+    crate_authors, crate_description, crate_name, crate_version, value_t_or_exit, App, Arg,
+};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use state_map::StateMap;

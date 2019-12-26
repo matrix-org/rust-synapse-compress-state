@@ -33,8 +33,7 @@ use state_map::StateMap;
 use std::collections::BTreeMap;
 use string_cache::DefaultAtom as Atom;
 
-use collapse_state_maps;
-use StateGroupEntry;
+use super::{collapse_state_maps, StateGroupEntry};
 
 /// Holds information about a particular level.
 struct Level {
