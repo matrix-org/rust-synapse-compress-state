@@ -93,6 +93,7 @@ impl FromStr for LevelSizes {
 }
 
 fn main() {
+    #[allow(deprecated)]
     let matches = App::new(crate_name!())
         .version(crate_version!())
         .author(crate_authors!("\n"))
