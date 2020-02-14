@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use fallible_iterator::FallibleIterator;
 use indicatif::{ProgressBar, ProgressStyle};
-use postgres::{Connection, TlsMode};
+use postgres::{fallible_iterator::FallibleIterator, Client};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use std::{borrow::Cow, collections::BTreeMap, fmt};
+use std::{borrow::Cow, collections::BTreeMap, fmt, iter};
 
 use super::StateGroupEntry;
 
@@ -27,9 +26,9 @@ pub fn get_data_from_db(
     room_id: &str,
     max_state_group: Option<i64>,
 ) -> BTreeMap<i64, StateGroupEntry> {
-    let conn = Connection::connect(db_url, TlsMode::None).unwrap();
+    let mut client = Client::connect(db_url, postgres::NoTls).unwrap();
 
-    let mut state_group_map = get_initial_data_from_db(&conn, room_id, max_state_group);
+    let mut state_group_map = get_initial_data_from_db(&mut client, room_id, max_state_group);
 
     println!("Got initial state from database. Checking for any missing state groups...");
 
@@ -64,7 +63,7 @@ pub fn get_data_from_db(
 
         println!("Missing {} state groups", missing_sgs.len());
 
-        let map = get_missing_from_db(&conn, &missing_sgs);
+        let map = get_missing_from_db(&mut client, &missing_sgs);
         state_group_map.extend(map.into_iter());
     }
 
@@ -74,7 +73,7 @@ pub fn get_data_from_db(
 /// Fetch the entries in state_groups_state (and their prev groups) for the
 /// given `room_id` by fetching all state with the given `room_id`.
 fn get_initial_data_from_db(
-    conn: &Connection,
+    client: &mut Client,
     room_id: &str,
     max_state_group: Option<i64>,
 ) -> BTreeMap<i64, StateGroupEntry> {
@@ -93,14 +92,10 @@ fn get_initial_data_from_db(
         }
     );
 
-    let stmt = conn.prepare(&sql).unwrap();
-
-    let trans = conn.transaction().unwrap();
-
     let mut rows = if let Some(s) = max_state_group {
-        stmt.lazy_query(&trans, &[&room_id, &s], 1000)
+        client.query_raw(&sql[..], vec![&room_id as _, &s as _])
     } else {
-        stmt.lazy_query(&trans, &[&room_id], 1000)
+        client.query_raw(&sql[..], iter::once(&room_id as _))
     }
     .unwrap();
 
@@ -140,19 +135,17 @@ fn get_initial_data_from_db(
 }
 
 /// Get any missing state groups from the database
-fn get_missing_from_db(conn: &Connection, missing_sgs: &[i64]) -> BTreeMap<i64, StateGroupEntry> {
-    let stmt = conn
-        .prepare(
+fn get_missing_from_db(client: &mut Client, missing_sgs: &[i64]) -> BTreeMap<i64, StateGroupEntry> {
+    let mut rows = client
+        .query_raw(
             r#"
                 SELECT state_group, prev_state_group
                 FROM state_group_edges
                 WHERE state_group = ANY($1)
             "#,
+            iter::once(&missing_sgs as _),
         )
         .unwrap();
-    let trans = conn.transaction().unwrap();
-
-    let mut rows = stmt.lazy_query(&trans, &[&missing_sgs], 100).unwrap();
 
     // initialise the map with empty entries (the missing group may not
     // have a prev_state_group either)
