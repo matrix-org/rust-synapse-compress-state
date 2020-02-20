@@ -16,17 +16,6 @@
 //! Synapse instance's database. Specifically, it aims to reduce the number of
 //! rows that a given room takes up in the `state_groups_state` table.
 
-#[macro_use]
-extern crate clap;
-extern crate fallible_iterator;
-extern crate indicatif;
-extern crate jemallocator;
-extern crate postgres;
-extern crate rand;
-extern crate rayon;
-extern crate state_map;
-extern crate string_cache;
-
 mod compressor;
 mod database;
 
@@ -34,18 +23,16 @@ mod database;
 static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
 use compressor::Compressor;
-use database::PGEscapse;
+use database::PGEscape;
 
-use clap::{App, Arg};
+use clap::{
+    crate_authors, crate_description, crate_name, crate_version, value_t_or_exit, App, Arg,
+};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use state_map::StateMap;
+use std::{collections::BTreeMap, fs::File, io::Write, str::FromStr};
 use string_cache::DefaultAtom as Atom;
-
-use std::collections::BTreeMap;
-use std::fs::File;
-use std::io::Write;
-use std::str::FromStr;
 
 /// An entry for a state group. Consists of an (optional) previous group and the
 /// delta from that previous group (or the full state if no previous group)
@@ -94,7 +81,7 @@ impl FromStr for LevelSizes {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut sizes = Vec::new();
 
-        for size_str in s.split(",") {
+        for size_str in s.split(',') {
             let size: usize = size_str
                 .parse()
                 .map_err(|_| "Not a comma separated list of numbers")?;
@@ -106,6 +93,7 @@ impl FromStr for LevelSizes {
 }
 
 fn main() {
+    #[allow(deprecated)]
     let matches = App::new(crate_name!())
         .version(crate_version!())
         .author(crate_authors!("\n"))
@@ -127,7 +115,15 @@ fn main() {
         ).arg(
             Arg::with_name("max_state_group")
                 .short("s")
+                .value_name("MAX_STATE_GROUP")
                 .help("The maximum state group to process up to")
+                .takes_value(true)
+                .required(false),
+        ).arg(
+            Arg::with_name("min_saved_rows")
+                .short("m")
+                .value_name("COUNT")
+                .help("Suppress output if fewer than COUNT rows would be saved")
                 .takes_value(true)
                 .required(false),
         ).arg(
@@ -175,6 +171,10 @@ fn main() {
     let max_state_group = matches
         .value_of("max_state_group")
         .map(|s| s.parse().expect("max_state_group must be an integer"));
+
+    let min_saved_rows = matches
+        .value_of("min_saved_rows")
+        .map(|v| v.parse().expect("COUNT must be an integer"));
 
     let transactions = matches.is_present("transactions");
 
@@ -228,6 +228,17 @@ fn main() {
         compressor.stats.state_groups_changed
     );
 
+    if let Some(min) = min_saved_rows {
+        let saving = (original_summed_size - compressed_summed_size) as i32;
+        if saving < min {
+            println!(
+                "Only {} rows would be saved by this compression. Skipping output.",
+                saving
+            );
+            return;
+        }
+    }
+
     // If we are given an output file, we output the changes as SQL. If the
     // `transactions` argument is set we wrap each change to a state group in a
     // transaction.
@@ -267,7 +278,7 @@ fn main() {
                     sg
                 )
                 .unwrap();
-                if new_entry.state_map.len() > 0 {
+                if !new_entry.state_map.is_empty() {
                     writeln!(output, "INSERT INTO state_groups_state (state_group, room_id, type, state_key, event_id) VALUES").unwrap();
                     let mut first = true;
                     for ((t, s), e) in new_entry.state_map.iter() {
@@ -281,10 +292,10 @@ fn main() {
                             output,
                             "({}, {}, {}, {}, {})",
                             sg,
-                            PGEscapse(room_id),
-                            PGEscapse(t),
-                            PGEscapse(s),
-                            PGEscapse(e)
+                            PGEscape(room_id),
+                            PGEscape(t),
+                            PGEscape(s),
+                            PGEscape(e)
                         )
                         .unwrap();
                     }
