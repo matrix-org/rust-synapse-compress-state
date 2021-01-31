@@ -13,11 +13,11 @@
 // limitations under the License.
 
 use indicatif::{ProgressBar, ProgressStyle};
-use postgres::{fallible_iterator::FallibleIterator, Client};
 use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+use postgres::{fallible_iterator::FallibleIterator, types::ToSql, Client};
 use postgres_openssl::MakeTlsConnector;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use std::{borrow::Cow, collections::BTreeMap, fmt, iter};
+use std::{borrow::Cow, collections::BTreeMap, fmt};
 
 use super::StateGroupEntry;
 
@@ -92,12 +92,10 @@ fn get_initial_data_from_db(
     "#;
 
     let mut rows = if let Some(s) = max_state_group {
-        client.query_raw(
-            format!(r"{} AND m.id <= $2", sql).as_str(),
-            vec![&room_id as _, &s as _],
-        )
+        let params: Vec<&dyn ToSql> = vec![&room_id, &s];
+        client.query_raw(format!(r"{} AND m.id <= $2", sql).as_str(), params)
     } else {
-        client.query_raw(sql, iter::once(&room_id as _))
+        client.query_raw(sql, &[room_id])
     }
     .unwrap();
 
@@ -140,7 +138,7 @@ fn get_missing_from_db(client: &mut Client, missing_sgs: &[i64]) -> BTreeMap<i64
                 FROM state_group_edges
                 WHERE state_group = ANY($1)
             "#,
-            iter::once(&missing_sgs as _),
+            &[missing_sgs],
         )
         .unwrap();
 
@@ -167,7 +165,11 @@ impl<'a> fmt::Display for PGEscape<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut delim = Cow::from("$$");
         while self.0.contains(&delim as &str) {
-            let s: String = thread_rng().sample_iter(&Alphanumeric).take(10).collect();
+            let s: String = thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(10)
+                .map(char::from)
+                .collect();
 
             delim = format!("${}$", s).into();
         }
