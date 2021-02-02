@@ -17,7 +17,6 @@ use postgres::{fallible_iterator::FallibleIterator, Client};
 use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 use postgres_openssl::MakeTlsConnector;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use regex::Regex;
 use std::{borrow::Cow, collections::BTreeMap, fmt, iter};
 
 use super::StateGroupEntry;
@@ -31,16 +30,11 @@ pub fn get_data_from_db(
 ) -> BTreeMap<i64, StateGroupEntry> {
     let mut client : postgres::Client;
 
-    if db_url.contains("sslmode=") {
-        let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-        builder.set_verify(SslVerifyMode::NONE);
-        let connector = MakeTlsConnector::new(builder.build());
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    builder.set_verify(SslVerifyMode::NONE);
+    let connector = MakeTlsConnector::new(builder.build());
 
-        let re = Regex::new(r"(?:sslmode=[^&]+&|\??sslmode=[^&]+)").unwrap();
-        client = Client::connect(&re.replace(db_url, ""), connector).unwrap();
-    } else {
-        client = Client::connect(db_url, postgres::NoTls).unwrap();
-    }
+    client = Client::connect(db_url, connector).unwrap();
 
     let mut state_group_map = get_initial_data_from_db(&mut client, room_id, max_state_group);
 
