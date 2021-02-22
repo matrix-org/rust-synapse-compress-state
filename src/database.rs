@@ -14,6 +14,8 @@
 
 use indicatif::{ProgressBar, ProgressStyle};
 use postgres::{fallible_iterator::FallibleIterator, Client};
+use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
+use postgres_openssl::MakeTlsConnector;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use std::{borrow::Cow, collections::BTreeMap, fmt, iter};
 
@@ -26,7 +28,11 @@ pub fn get_data_from_db(
     room_id: &str,
     max_state_group: Option<i64>,
 ) -> BTreeMap<i64, StateGroupEntry> {
-    let mut client = Client::connect(db_url, postgres::NoTls).unwrap();
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    builder.set_verify(SslVerifyMode::NONE);
+    let connector = MakeTlsConnector::new(builder.build());
+
+    let mut client = Client::connect(db_url, connector).unwrap();
 
     let mut state_group_map = get_initial_data_from_db(&mut client, room_id, max_state_group);
 
