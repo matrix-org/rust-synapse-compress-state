@@ -1,4 +1,4 @@
-FROM rust:1.43
+FROM rust:1.49-buster AS builder
 WORKDIR /usr/src
 
 RUN USER=root cargo new synapse-compress-state
@@ -7,4 +7,6 @@ COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 RUN cargo install --path .
 
-ENTRYPOINT ["/usr/local/cargo/bin/synapse-compress-state"]
+FROM debian:buster
+COPY --from=builder /usr/local/cargo/bin/synapse-compress-state /usr/local/bin/synapse-compress-state
+ENTRYPOINT ["/usr/local/bin/synapse-compress-state"]
