@@ -92,9 +92,19 @@ impl FromStr for LevelSizes {
     }
 }
 
-fn main() {
-    #[allow(deprecated)]
-    let matches = App::new(crate_name!())
+struct Config {
+    db_url: String,
+    output_file: Option<File>,
+    room_id: String,
+    max_state_group: Option<i64>,
+    min_saved_rows: Option<i32>,
+    transactions: bool,
+    level_sizes: LevelSizes,
+}
+
+impl Config {
+    fn parse_arguments() -> Config {
+        let matches = App::new(crate_name!())
         .version(crate_version!())
         .author(crate_authors!("\n"))
         .about(crate_description!())
@@ -156,35 +166,56 @@ fn main() {
                 .takes_value(true),
         ).get_matches();
 
-    let db_url = matches
-        .value_of("postgres-url")
-        .expect("db url should be required");
+        let db_url = matches
+            .value_of("postgres-url")
+            .expect("db url should be required");
 
-    let mut output_file = matches
-        .value_of("output_file")
-        .map(|path| File::create(path).unwrap());
+        let output_file = matches
+            .value_of("output_file")
+            .map(|path| File::create(path).unwrap());
 
-    let room_id = matches
-        .value_of("room_id")
-        .expect("room_id should be required since no file");
+        let room_id = matches
+            .value_of("room_id")
+            .expect("room_id should be required since no file");
 
-    let max_state_group = matches
-        .value_of("max_state_group")
-        .map(|s| s.parse().expect("max_state_group must be an integer"));
+        let max_state_group = matches
+            .value_of("max_state_group")
+            .map(|s| s.parse().expect("max_state_group must be an integer"));
 
-    let min_saved_rows = matches
-        .value_of("min_saved_rows")
-        .map(|v| v.parse().expect("COUNT must be an integer"));
+        let min_saved_rows = matches
+            .value_of("min_saved_rows")
+            .map(|v| v.parse().expect("COUNT must be an integer"));
 
-    let transactions = matches.is_present("transactions");
+        let transactions = matches.is_present("transactions");
 
-    let level_sizes = value_t_or_exit!(matches, "level_sizes", LevelSizes);
+        let level_sizes = value_t_or_exit!(matches, "level_sizes", LevelSizes);
+
+        Config {
+            db_url: String::from(db_url),
+            output_file,
+            room_id: String::from(room_id),
+            max_state_group,
+            min_saved_rows,
+            transactions,
+            level_sizes,
+        }
+    }
+}
+
+fn main() {
+    let mut config = Config::parse_arguments();
 
     // First we need to get the current state groups
-    println!("Fetching state from DB for room '{}'...", room_id);
-    let state_group_map = database::get_data_from_db(db_url, room_id, max_state_group);
+    println!("Fetching state from DB for room '{}'...", config.room_id);
+    
+    let state_group_map = database::get_data_from_db(
+        &config.db_url,
+        &config.room_id, 
+        config.max_state_group
+    );
 
     println!("Number of state groups: {}", state_group_map.len());
+
 
     let original_summed_size = state_group_map
         .iter()
@@ -192,13 +223,15 @@ fn main() {
 
     println!("Number of rows in current table: {}", original_summed_size);
 
+
     // Now we actually call the compression algorithm.
 
     println!("Compressing state...");
 
-    let compressor = Compressor::compress(&state_group_map, &level_sizes.0);
+    let compressor = Compressor::compress(&state_group_map, &config.level_sizes.0);
 
     let new_state_group_map = compressor.new_state_group_map;
+
 
     // Done! Now to print a bunch of stats.
 
@@ -214,6 +247,7 @@ fn main() {
         ratio * 100.
     );
 
+
     println!("Compression Statistics:");
     println!(
         "  Number of forced resets due to lacking prev: {}",
@@ -228,7 +262,8 @@ fn main() {
         compressor.stats.state_groups_changed
     );
 
-    if let Some(min) = min_saved_rows {
+
+    if let Some(min) = config.min_saved_rows {
         let saving = (original_summed_size - compressed_summed_size) as i32;
         if saving < min {
             println!(
@@ -239,11 +274,12 @@ fn main() {
         }
     }
 
+
     // If we are given an output file, we output the changes as SQL. If the
     // `transactions` argument is set we wrap each change to a state group in a
     // transaction.
 
-    if let Some(output) = &mut output_file {
+    if let Some(output) = &mut config.output_file {
         println!("Writing changes...");
 
         let pb = ProgressBar::new(state_group_map.len() as u64);
@@ -257,7 +293,7 @@ fn main() {
             let new_entry = &new_state_group_map[sg];
 
             if old_entry != new_entry {
-                if transactions {
+                if config.transactions {
                     writeln!(output, "BEGIN;").unwrap();
                 }
 
@@ -292,7 +328,7 @@ fn main() {
                             output,
                             "({}, {}, {}, {}, {})",
                             sg,
-                            PGEscape(room_id),
+                            PGEscape(&config.room_id),
                             PGEscape(t),
                             PGEscape(s),
                             PGEscape(e)
@@ -302,7 +338,7 @@ fn main() {
                     writeln!(output, ";").unwrap();
                 }
 
-                if transactions {
+                if config.transactions {
                     writeln!(output, "COMMIT;").unwrap();
                 }
                 writeln!(output).unwrap();
@@ -314,6 +350,7 @@ fn main() {
         pb.finish();
     }
 
+
     println!("Checking that state maps match...");
 
     let pb = ProgressBar::new(state_group_map.len() as u64);
@@ -323,6 +360,7 @@ fn main() {
     pb.set_message("state groups");
     pb.enable_steady_tick(100);
 
+    
     // Now let's iterate through and assert that the state for each group
     // matches between the two versions.
     state_group_map
