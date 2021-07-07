@@ -274,6 +274,7 @@ fn main() {
         }
     }
 
+    check_that_maps_match(&state_group_map, &new_state_group_map);
 
     // If we are given an output file, we output the changes as SQL. If the
     // `transactions` argument is set we wrap each change to a state group in a
@@ -284,7 +285,6 @@ fn main() {
         &new_state_group_map
     );
 
-    check_that_maps_match(&state_group_map, &new_state_group_map);
 }
 
 fn output_sql(
