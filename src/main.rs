@@ -279,18 +279,37 @@ fn main() {
     // `transactions` argument is set we wrap each change to a state group in a
     // transaction.
 
+    output_sql(&mut config,
+        &state_group_map, 
+        &new_state_group_map
+    );
+
+    check_that_maps_match(&state_group_map, &new_state_group_map);
+}
+
+fn output_sql(
+    config: &mut Config,
+    old_map: &BTreeMap<i64, StateGroupEntry>,
+    new_map: &BTreeMap<i64, StateGroupEntry>
+) 
+{
+    if let None = config.output_file {
+        return;
+    }
+
+    println!("Writing changes...");
+    
+    let pb = ProgressBar::new(old_map.len() as u64);
+    pb.set_style(
+        ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
+    );
+    pb.set_message("state groups");
+    pb.enable_steady_tick(100);
+
     if let Some(output) = &mut config.output_file {
-        println!("Writing changes...");
 
-        let pb = ProgressBar::new(state_group_map.len() as u64);
-        pb.set_style(
-            ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
-        );
-        pb.set_message("state groups");
-        pb.enable_steady_tick(100);
-
-        for (sg, old_entry) in &state_group_map {
-            let new_entry = &new_state_group_map[sg];
+        for (sg, old_entry) in old_map {
+            let new_entry = &new_map[sg];
 
             if old_entry != new_entry {
                 if config.transactions {
@@ -346,14 +365,18 @@ fn main() {
 
             pb.inc(1);
         }
-
-        pb.finish();
     }
 
+    pb.finish();
+}
 
+fn check_that_maps_match(
+    old_map: &BTreeMap<i64, StateGroupEntry>,
+    new_map: &BTreeMap<i64, StateGroupEntry>
+) {
     println!("Checking that state maps match...");
 
-    let pb = ProgressBar::new(state_group_map.len() as u64);
+    let pb = ProgressBar::new(old_map.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
     );
@@ -363,11 +386,11 @@ fn main() {
     
     // Now let's iterate through and assert that the state for each group
     // matches between the two versions.
-    state_group_map
+    old_map
         .par_iter() // This uses rayon to run the checks in parallel
         .try_for_each(|(sg, _)| {
-            let expected = collapse_state_maps(&state_group_map, *sg);
-            let actual = collapse_state_maps(&new_state_group_map, *sg);
+            let expected = collapse_state_maps(&old_map, *sg);
+            let actual = collapse_state_maps(&new_map, *sg);
 
             pb.inc(1);
 
