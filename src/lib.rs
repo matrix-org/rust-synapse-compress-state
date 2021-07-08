@@ -28,13 +28,11 @@ use state_map::StateMap;
 use std::{collections::BTreeMap, fs::File, io::Write, str::FromStr};
 use string_cache::DefaultAtom as Atom;
 
-
 mod compressor;
 mod database;
 
 use compressor::Compressor;
 use database::PGEscape;
-
 
 /// An entry for a state group. Consists of an (optional) previous group and the
 /// delta from that previous group (or the full state if no previous group)
@@ -43,7 +41,6 @@ pub struct StateGroupEntry {
     prev_state_group: Option<i64>,
     state_map: StateMap<Atom>,
 }
-
 
 /// Helper struct for parsing the `level_sizes` argument.
 struct LevelSizes(Vec<usize>);
@@ -187,7 +184,7 @@ impl Config {
 /// - Checks that number of lines saved is greater than threshold
 /// - Ensures new mapping doesn't affect actual state contents
 /// - Produces SQL code to carry out changes and saves it to file
-/// 
+///
 /// # Arguments
 ///
 /// * `config: Config` - A Config struct that controlls the run
@@ -195,22 +192,17 @@ impl Config {
 pub fn run(mut config: Config) {
     // First we need to get the current state groups
     println!("Fetching state from DB for room '{}'...", config.room_id);
-    
-    let state_group_map = database::get_data_from_db(
-        &config.db_url,
-        &config.room_id, 
-        config.max_state_group
-    );
+
+    let state_group_map =
+        database::get_data_from_db(&config.db_url, &config.room_id, config.max_state_group);
 
     println!("Number of state groups: {}", state_group_map.len());
-
 
     let original_summed_size = state_group_map
         .iter()
         .fold(0, |acc, (_, v)| acc + v.state_map.len());
 
     println!("Number of rows in current table: {}", original_summed_size);
-
 
     // Now we actually call the compression algorithm.
 
@@ -219,7 +211,6 @@ pub fn run(mut config: Config) {
     let compressor = Compressor::compress(&state_group_map, &config.level_sizes.0);
 
     let new_state_group_map = compressor.new_state_group_map;
-
 
     // Done! Now to print a bunch of stats.
 
@@ -235,7 +226,6 @@ pub fn run(mut config: Config) {
         ratio * 100.
     );
 
-
     println!("Compression Statistics:");
     println!(
         "  Number of forced resets due to lacking prev: {}",
@@ -249,7 +239,6 @@ pub fn run(mut config: Config) {
         "  Number of state groups changed: {}",
         compressor.stats.state_groups_changed
     );
-
 
     if let Some(min) = config.min_saved_rows {
         let saving = (original_summed_size - compressed_summed_size) as i32;
@@ -268,11 +257,7 @@ pub fn run(mut config: Config) {
     // `transactions` argument is set we wrap each change to a state group in a
     // transaction.
 
-    output_sql(&mut config,
-        &state_group_map, 
-        &new_state_group_map
-    );
-
+    output_sql(&mut config, &state_group_map, &new_state_group_map);
 }
 
 /// Produces SQL code to carry out changes and saves it to file
@@ -289,15 +274,14 @@ pub fn run(mut config: Config) {
 fn output_sql(
     config: &mut Config,
     old_map: &BTreeMap<i64, StateGroupEntry>,
-    new_map: &BTreeMap<i64, StateGroupEntry>
-) 
-{
+    new_map: &BTreeMap<i64, StateGroupEntry>,
+) {
     if let None = config.output_file {
         return;
     }
 
     println!("Writing changes...");
-    
+
     let pb = ProgressBar::new(old_map.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
@@ -306,7 +290,6 @@ fn output_sql(
     pb.enable_steady_tick(100);
 
     if let Some(output) = &mut config.output_file {
-
         for (sg, old_entry) in old_map {
             let new_entry = &new_map[sg];
 
@@ -373,10 +356,10 @@ fn output_sql(
 ///
 /// A state group entry contains a predecessor state group and a delta.
 /// The complete contents of a certain state group can be calculated by
-/// following this chain of predecessors back to some empty state and 
+/// following this chain of predecessors back to some empty state and
 /// combining all the deltas together. This is called "collapsing".
 ///
-/// This function confirms that two state groups mappings lead to the 
+/// This function confirms that two state groups mappings lead to the
 /// exact same entries for each state group after collapsing them down.
 ///
 /// # Arguments
@@ -385,7 +368,7 @@ fn output_sql(
 ///                 to
 fn check_that_maps_match(
     old_map: &BTreeMap<i64, StateGroupEntry>,
-    new_map: &BTreeMap<i64, StateGroupEntry>
+    new_map: &BTreeMap<i64, StateGroupEntry>,
 ) {
     println!("Checking that state maps match...");
 
@@ -396,7 +379,6 @@ fn check_that_maps_match(
     pb.set_message("state groups");
     pb.enable_steady_tick(100);
 
-    
     // Now let's iterate through and assert that the state for each group
     // matches between the two versions.
     old_map
@@ -424,10 +406,7 @@ fn check_that_maps_match(
 }
 
 /// Gets the full state for a given group from the map (of deltas)
-fn collapse_state_maps(
-    map: &BTreeMap<i64, StateGroupEntry>,
-    state_group: i64,
-) -> StateMap<Atom> {
+fn collapse_state_maps(map: &BTreeMap<i64, StateGroupEntry>, state_group: i64) -> StateMap<Atom> {
     let mut entry = &map[&state_group];
     let mut state_map = StateMap::new();
 
