@@ -28,13 +28,11 @@ use state_map::StateMap;
 use std::{collections::BTreeMap, fs::File, io::Write, str::FromStr};
 use string_cache::DefaultAtom as Atom;
 
-
 mod compressor;
 mod database;
 
 use compressor::Compressor;
 use database::PGEscape;
-
 
 /// An entry for a state group. Consists of an (optional) previous group and the
 /// delta from that previous group (or the full state if no previous group)
@@ -43,7 +41,6 @@ pub struct StateGroupEntry {
     prev_state_group: Option<i64>,
     state_map: StateMap<Atom>,
 }
-
 
 /// Helper struct for parsing the `level_sizes` argument.
 struct LevelSizes(Vec<usize>);
@@ -187,7 +184,7 @@ impl Config {
 /// - Checks that number of lines saved is greater than threshold
 /// - Ensures new mapping doesn't affect actual state contents
 /// - Produces SQL code to carry out changes and saves it to file
-/// 
+///
 /// # Arguments
 ///
 /// * `config: Config` - A Config struct that controlls the run
@@ -359,10 +356,10 @@ fn output_sql(
 ///
 /// A state group entry contains a predecessor state group and a delta.
 /// The complete contents of a certain state group can be calculated by
-/// following this chain of predecessors back to some empty state and 
+/// following this chain of predecessors back to some empty state and
 /// combining all the deltas together. This is called "collapsing".
 ///
-/// This function confirms that two state groups mappings lead to the 
+/// This function confirms that two state groups mappings lead to the
 /// exact same entries for each state group after collapsing them down.
 ///
 /// # Arguments
@@ -409,10 +406,7 @@ fn check_that_maps_match(
 }
 
 /// Gets the full state for a given group from the map (of deltas)
-fn collapse_state_maps(
-    map: &BTreeMap<i64, StateGroupEntry>,
-    state_group: i64,
-) -> StateMap<Atom> {
+fn collapse_state_maps(map: &BTreeMap<i64, StateGroupEntry>, state_group: i64) -> StateMap<Atom> {
     let mut entry = &map[&state_group];
     let mut state_map = StateMap::new();
 
