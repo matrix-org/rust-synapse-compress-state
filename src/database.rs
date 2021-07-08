@@ -104,8 +104,8 @@ pub fn get_data_from_db(
 /// * `client`          -   A Postgres client to make requests with
 /// * `room_id`         -   The ID of the room in the database
 /// * `max_state_group` -   If specified, then only fetch the entries for state
-///                         groups lower than or equal to this number. (N.B. also
-///                         fetches IMMEDIATE predecessors)
+///                         groups lower than or equal to this number. (N.B. doesn't
+///                         fetch IMMEDIATE predecessors if ID is above this number)
 
 fn get_initial_data_from_db(
     client: &mut Client,
