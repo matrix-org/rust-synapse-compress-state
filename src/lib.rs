@@ -16,6 +16,8 @@
 //! Synapse instance's database. Specifically, it aims to reduce the number of
 //! rows that a given room takes up in the `state_groups_state` table.
 
+use pyo3::prelude::*;
+
 #[global_allocator]
 static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
@@ -430,4 +432,90 @@ fn collapse_state_maps(map: &BTreeMap<i64, StateGroupEntry>, state_group: i64) -
     }
 
     state_map
+}
+
+impl Config {
+    pub fn new(
+        db_url: String,
+        output_file: String,
+        room_id: String,
+        max_state_group: String,
+        min_saved_rows: String,
+        transactions: bool,
+        level_sizes: String,
+    ) -> Config {
+        if db_url == "" {
+            panic!("db url is required");
+        }
+
+        let mut output: Option<File> = None;
+        if output_file != "" {
+            output = Some(File::create(output_file).unwrap());
+        }
+        let output_file = output;
+
+        if room_id == "" {
+            panic!("room_id is required");
+        }
+
+        let mut max_row: Option<i64> = None;
+        if max_state_group != "" {
+            max_row = Some(max_state_group.parse().unwrap());
+        }
+        let max_state_group = max_row;
+
+        let mut min_count: Option<i32> = None;
+        if min_saved_rows != "" {
+            min_count = Some(min_saved_rows.parse().unwrap());
+        }
+        let min_saved_rows = min_count;
+
+        let level_sizes: LevelSizes = level_sizes.parse().unwrap();
+
+        return Config {
+            db_url,
+            output_file,
+            room_id,
+            max_state_group,
+            min_saved_rows,
+            transactions,
+            level_sizes,
+        };
+    }
+}
+
+#[pyfunction(
+    db_url = "String::from(\"\")",
+    output_file = "String::from(\"\")",
+    room_id = "String::from(\"\")",
+    max_state_group = "String::from(\"\")",
+    min_saved_rows = "String::from(\"\")",
+    transactions = false,
+    level_sizes = "String::from(\"100,50,25\")"
+)]
+fn run_compression(
+    db_url: String,
+    output_file: String,
+    room_id: String,
+    max_state_group: String,
+    min_saved_rows: String,
+    transactions: bool,
+    level_sizes: String,
+) {
+    let config = Config::new(
+        db_url,
+        output_file,
+        room_id,
+        max_state_group,
+        min_saved_rows,
+        transactions,
+        level_sizes,
+    );
+    run(config);
+}
+
+#[pymodule]
+fn synapse_compress_state(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(run_compression, m)?)?;
+    Ok(())
 }
