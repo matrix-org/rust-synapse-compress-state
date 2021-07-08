@@ -434,7 +434,10 @@ fn collapse_state_maps(map: &BTreeMap<i64, StateGroupEntry>, state_group: i64) -
     state_map
 }
 
+// PyO3 INTERFACE STARTS HERE
+
 impl Config {
+    /// Converts string and bool arguments into a Config struct
     pub fn new(
         db_url: String,
         output_file: String,
@@ -484,6 +487,9 @@ impl Config {
     }
 }
 
+/// Access point for python code
+///
+/// Default arguments are equivalent to using the command line tool
 #[pyfunction(
     db_url = "String::from(\"\")",
     output_file = "String::from(\"\")",
@@ -514,6 +520,7 @@ fn run_compression(
     run(config);
 }
 
+/// Python module - "import synapse_compress_state" to use
 #[pymodule]
 fn synapse_compress_state(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_compression, m)?)?;
