@@ -45,7 +45,7 @@ attempts to keep this below 100.
 ## Example usage
 
 ```
-$ synapse-compress-state -p "postgresql://localhost/synapse" -r '!some_room:example.com' -o out.sql -t
+$ synapse_compress_state -p "postgresql://localhost/synapse" -r '!some_room:example.com' -o out.sql -t
 Fetching state from DB for room '!some_room:example.com'...
 Got initial state from database. Checking for any missing state groups...
 Number of state groups: 73904
@@ -59,4 +59,21 @@ New state map matches old one
 
 # It's finished, so we can now go and rewrite the DB
 $ psql synapse < out.data
+```
+
+## Using as python library
+
+The compressor can also be built into a python library as it uses PyO3. It can be
+built and installed into the current virtual environment by running `maturin develop`
+
+The following code does exactly the same as the command-line example from above:
+```
+import synapse_compress_state as comp
+
+comp.run_compression(
+  db_url="postgresql://localhost/synapse",
+  room_id="!some_room:example.com",
+  output_file="out.sql",
+  transactions=True
+)
 ```

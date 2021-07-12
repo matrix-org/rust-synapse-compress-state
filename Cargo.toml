@@ -1,13 +1,13 @@
 [package]
 authors = ["Erik Johnston"]
 description = "A tool to compress some state in a Synapse instance's database"
-name = "synapse-compress-state"
+name = "synapse_compress_state"
 version = "0.1.0"
 edition = "2018"
 
 [dependencies]
 clap = "2.33.0"
-indicatif = "0.15.0"
+indicatif = "0.16.0"
 jemallocator = "0.3.2"
 openssl = "0.10.32"
 postgres = "0.19.0"
@@ -18,3 +18,11 @@ string_cache = "0.8.0"
 
 [dependencies.state-map]
 git = "https://github.com/matrix-org/rust-matrix-state-map"
+
+# Needed for pyo3 support
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies.pyo3]
+version = "0.14.1"
+features = ["extension-module","abi3-py36"]
