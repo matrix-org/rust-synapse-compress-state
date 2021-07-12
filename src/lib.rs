@@ -447,35 +447,35 @@ impl Config {
         transactions: bool,
         level_sizes: String,
     ) -> Config {
-        if db_url == "" {
+        if db_url.is_empty() {
             panic!("db url is required");
         }
 
         let mut output: Option<File> = None;
-        if output_file != "" {
+        if !output_file.is_empty() {
             output = Some(File::create(output_file).unwrap());
         }
         let output_file = output;
 
-        if room_id == "" {
+        if room_id.is_empty() {
             panic!("room_id is required");
         }
 
         let mut max_row: Option<i64> = None;
-        if max_state_group != "" {
+        if !max_state_group.is_empty() {
             max_row = Some(max_state_group.parse().unwrap());
         }
         let max_state_group = max_row;
 
         let mut min_count: Option<i32> = None;
-        if min_saved_rows != "" {
+        if !min_saved_rows.is_empty() {
             min_count = Some(min_saved_rows.parse().unwrap());
         }
         let min_saved_rows = min_count;
 
         let level_sizes: LevelSizes = level_sizes.parse().unwrap();
 
-        return Config {
+        Config {
             db_url,
             output_file,
             room_id,
@@ -483,7 +483,7 @@ impl Config {
             min_saved_rows,
             transactions,
             level_sizes,
-        };
+        }
     }
 }
 
