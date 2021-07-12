@@ -70,11 +70,11 @@ The following code does exactly the same as the command-line example from above:
 ```
 import synapse_compress_state as comp
 
-comp.run_compression(\
-  db_url="postgresql://localhost/synapse",\
-  room_id="!some_room:example.com",\
-  output_file="out.sql",\
-  transactions=True\
+comp.run_compression(
+  db_url="postgresql://localhost/synapse",
+  room_id="!some_room:example.com",
+  output_file="out.sql",
+  transactions=True
 )
 ```
 
