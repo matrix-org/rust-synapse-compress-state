@@ -32,6 +32,7 @@ use string_cache::DefaultAtom as Atom;
 
 mod compressor;
 mod database;
+mod graphing;
 
 use compressor::Compressor;
 use database::PGEscape;
@@ -73,6 +74,7 @@ pub struct Config {
     min_saved_rows: Option<i32>,
     transactions: bool,
     level_sizes: LevelSizes,
+    graphs: bool
 }
 
 impl Config {
@@ -138,6 +140,10 @@ impl Config {
                 ))
                 .default_value("100,50,25")
                 .takes_value(true),
+        ).arg(
+            Arg::with_name("graphs")
+                .short("g")
+                .help("Whether to produce graphs of state groups before and after compression instead of SQL")
         ).get_matches();
 
         let db_url = matches
@@ -164,6 +170,8 @@ impl Config {
 
         let level_sizes = value_t_or_exit!(matches, "level_sizes", LevelSizes);
 
+        let graphs = matches.is_present("graphs");
+
         Config {
             db_url: String::from(db_url),
             output_file,
@@ -172,6 +180,7 @@ impl Config {
             min_saved_rows,
             transactions,
             level_sizes,
+            graphs,
         }
     }
 }
@@ -260,6 +269,10 @@ pub fn run(mut config: Config) {
     // transaction.
 
     output_sql(&mut config, &state_group_map, &new_state_group_map);
+
+    if config.graphs {
+        graphing::make_graphs(state_group_map, new_state_group_map);
+    }
 }
 
 /// Produces SQL code to carry out changes and saves it to file
@@ -446,6 +459,7 @@ impl Config {
         min_saved_rows: String,
         transactions: bool,
         level_sizes: String,
+        graphs: bool,
     ) -> Config {
         if db_url.is_empty() {
             panic!("db url is required");
@@ -483,6 +497,7 @@ impl Config {
             min_saved_rows,
             transactions,
             level_sizes,
+            graphs,
         }
     }
 }
@@ -497,7 +512,8 @@ impl Config {
     max_state_group = "String::from(\"\")",
     min_saved_rows = "String::from(\"\")",
     transactions = false,
-    level_sizes = "String::from(\"100,50,25\")"
+    level_sizes = "String::from(\"100,50,25\")",
+    graphs = false,
 )]
 fn run_compression(
     db_url: String,
@@ -507,6 +523,7 @@ fn run_compression(
     min_saved_rows: String,
     transactions: bool,
     level_sizes: String,
+    graphs: bool,
 ) {
     let config = Config::new(
         db_url,
@@ -516,6 +533,7 @@ fn run_compression(
         min_saved_rows,
         transactions,
         level_sizes,
+        graphs,
     );
     run(config);
 }
