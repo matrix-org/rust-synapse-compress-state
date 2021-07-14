@@ -503,7 +503,7 @@ impl Config {
     min_saved_rows = "None",
     transactions = false,
     level_sizes = "String::from(\"100,50,25\")",
-    graphs = false,
+    graphs = false
 )]
 fn run_compression(
     db_url: String,
