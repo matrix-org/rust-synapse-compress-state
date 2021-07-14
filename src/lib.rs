@@ -74,7 +74,7 @@ pub struct Config {
     min_saved_rows: Option<i32>,
     transactions: bool,
     level_sizes: LevelSizes,
-    graphs: bool
+    graphs: bool,
 }
 
 impl Config {
@@ -513,7 +513,7 @@ impl Config {
     min_saved_rows = "String::from(\"\")",
     transactions = false,
     level_sizes = "String::from(\"100,50,25\")",
-    graphs = false,
+    graphs = false
 )]
 fn run_compression(
     db_url: String,
