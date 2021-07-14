@@ -41,6 +41,7 @@ use database::PGEscape;
 /// delta from that previous group (or the full state if no previous group)
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct StateGroupEntry {
+    in_range: bool,
     prev_state_group: Option<i64>,
     state_map: StateMap<Atom>,
 }
@@ -70,9 +71,8 @@ pub struct Config {
     db_url: String,
     output_file: Option<File>,
     room_id: String,
-    max_state_group: Option<i64>,
-    min_saved_rows: Option<i32>,
-    transactions: bool,
+    min_state_group: Option<i64>,
+    groups_to_compress: Option<i64>,
     level_sizes: LevelSizes,
     graphs: bool,
 }
@@ -99,30 +99,27 @@ impl Config {
                 .takes_value(true)
                 .required(true),
         ).arg(
-            Arg::with_name("max_state_group")
-                .short("s")
-                .value_name("MAX_STATE_GROUP")
-                .help("The maximum state group to process up to")
-                .takes_value(true)
-                .required(false),
-        ).arg(
-            Arg::with_name("min_saved_rows")
+            Arg::with_name("min_state_group")
                 .short("m")
-                .value_name("COUNT")
-                .help("Suppress output if fewer than COUNT rows would be saved")
+                .value_name("MIN_STATE_GROUP")
+                .help("The state group to start processing from")
                 .takes_value(true)
-                .required(false),
+                .required(false)
+                .requires("groups_to_compress"),
+        ).arg(
+            Arg::with_name("groups_to_compress")
+                .short("n")
+                .value_name("GROUPS_TO_COMPRESS")
+                .help("How many groups to load into memory to compress")
+                .takes_value(true)
+                .required(false)
+                .requires("min_state_group"),
         ).arg(
             Arg::with_name("output_file")
                 .short("o")
                 .value_name("FILE")
                 .help("File to output the changes to in SQL")
                 .takes_value(true),
-        ).arg(
-            Arg::with_name("transactions")
-                .short("t")
-                .help("Whether to wrap each state group change in a transaction")
-                .requires("output_file"),
         ).arg(
             Arg::with_name("level_sizes")
                 .short("l")
@@ -158,15 +155,13 @@ impl Config {
             .value_of("room_id")
             .expect("room_id should be required since no file");
 
-        let max_state_group = matches
-            .value_of("max_state_group")
-            .map(|s| s.parse().expect("max_state_group must be an integer"));
+        let min_state_group = matches
+            .value_of("min_state_group")
+            .map(|s| s.parse().expect("min_state_group must be an integer"));
 
-        let min_saved_rows = matches
-            .value_of("min_saved_rows")
-            .map(|v| v.parse().expect("COUNT must be an integer"));
-
-        let transactions = matches.is_present("transactions");
+        let groups_to_compress = matches
+            .value_of("groups_to_compress")
+            .map(|s| s.parse().expect("groups_to_compress must be an integer"));
 
         let level_sizes = value_t_or_exit!(matches, "level_sizes", LevelSizes);
 
@@ -176,9 +171,8 @@ impl Config {
             db_url: String::from(db_url),
             output_file,
             room_id: String::from(room_id),
-            max_state_group,
-            min_saved_rows,
-            transactions,
+            min_state_group,
+            groups_to_compress,
             level_sizes,
             graphs,
         }
@@ -204,8 +198,12 @@ pub fn run(mut config: Config) {
     // First we need to get the current state groups
     println!("Fetching state from DB for room '{}'...", config.room_id);
 
-    let state_group_map =
-        database::get_data_from_db(&config.db_url, &config.room_id, config.max_state_group);
+    let state_group_map = database::get_data_from_db(
+        &config.db_url,
+        &config.room_id,
+        config.min_state_group,
+        config.groups_to_compress,
+    );
 
     println!("Number of state groups: {}", state_group_map.len());
 
@@ -250,17 +248,6 @@ pub fn run(mut config: Config) {
         "  Number of state groups changed: {}",
         compressor.stats.state_groups_changed
     );
-
-    if let Some(min) = config.min_saved_rows {
-        let saving = (original_summed_size - compressed_summed_size) as i32;
-        if saving < min {
-            println!(
-                "Only {} rows would be saved by this compression. Skipping output.",
-                saving
-            );
-            return;
-        }
-    }
 
     check_that_maps_match(&state_group_map, &new_state_group_map);
 
@@ -309,9 +296,7 @@ fn output_sql(
             let new_entry = &new_map[sg];
 
             if old_entry != new_entry {
-                if config.transactions {
-                    writeln!(output, "BEGIN;").unwrap();
-                }
+                writeln!(output, "BEGIN;").unwrap();
 
                 writeln!(
                     output,
@@ -354,9 +339,7 @@ fn output_sql(
                     writeln!(output, ";").unwrap();
                 }
 
-                if config.transactions {
-                    writeln!(output, "COMMIT;").unwrap();
-                }
+                writeln!(output, "COMMIT;").unwrap();
                 writeln!(output).unwrap();
             }
 
@@ -455,9 +438,8 @@ impl Config {
         db_url: String,
         output_file: String,
         room_id: String,
-        max_state_group: String,
-        min_saved_rows: String,
-        transactions: bool,
+        min_state_group: String,
+        groups_to_compress: String,
         level_sizes: String,
         graphs: bool,
     ) -> Config {
@@ -475,17 +457,17 @@ impl Config {
             panic!("room_id is required");
         }
 
-        let mut max_row: Option<i64> = None;
-        if !max_state_group.is_empty() {
-            max_row = Some(max_state_group.parse().unwrap());
+        let mut min_row: Option<i64> = None;
+        if !min_state_group.is_empty() {
+            min_row = Some(min_state_group.parse().unwrap());
         }
-        let max_state_group = max_row;
+        let min_state_group = min_row;
 
-        let mut min_count: Option<i32> = None;
-        if !min_saved_rows.is_empty() {
-            min_count = Some(min_saved_rows.parse().unwrap());
+        let mut num_groups: Option<i64> = None;
+        if !groups_to_compress.is_empty() {
+            num_groups = Some(groups_to_compress.parse().unwrap());
         }
-        let min_saved_rows = min_count;
+        let groups_to_compress = num_groups;
 
         let level_sizes: LevelSizes = level_sizes.parse().unwrap();
 
@@ -493,9 +475,8 @@ impl Config {
             db_url,
             output_file,
             room_id,
-            max_state_group,
-            min_saved_rows,
-            transactions,
+            min_state_group,
+            groups_to_compress,
             level_sizes,
             graphs,
         }
@@ -509,9 +490,8 @@ impl Config {
     db_url = "String::from(\"\")",
     output_file = "String::from(\"\")",
     room_id = "String::from(\"\")",
-    max_state_group = "String::from(\"\")",
-    min_saved_rows = "String::from(\"\")",
-    transactions = false,
+    min_state_group = "String::from(\"\")",
+    groups_to_compress = "String::from(\"\")",
     level_sizes = "String::from(\"100,50,25\")",
     graphs = false
 )]
@@ -519,9 +499,8 @@ fn run_compression(
     db_url: String,
     output_file: String,
     room_id: String,
-    max_state_group: String,
-    min_saved_rows: String,
-    transactions: bool,
+    min_state_group: String,
+    groups_to_compress: String,
     level_sizes: String,
     graphs: bool,
 ) {
@@ -529,9 +508,8 @@ fn run_compression(
         db_url,
         output_file,
         room_id,
-        max_state_group,
-        min_saved_rows,
-        transactions,
+        min_state_group,
+        groups_to_compress,
         level_sizes,
         graphs,
     );

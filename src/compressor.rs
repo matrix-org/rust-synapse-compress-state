@@ -141,6 +141,17 @@ impl<'a> Compressor<'a> {
         pb.enable_steady_tick(100);
 
         for (&state_group, entry) in self.original_state_map {
+            if !entry.in_range {
+                self.new_state_group_map.insert(
+                    state_group,
+                    StateGroupEntry {
+                        in_range: entry.in_range,
+                        prev_state_group: entry.prev_state_group,
+                        state_map: entry.state_map.clone(),
+                    },
+                );
+                continue;
+            }
             let mut prev_state_group = None;
             for level in &mut self.levels {
                 if level.has_space() {
@@ -162,6 +173,7 @@ impl<'a> Compressor<'a> {
             self.new_state_group_map.insert(
                 state_group,
                 StateGroupEntry {
+                    in_range: true,
                     prev_state_group,
                     state_map: delta,
                 },
@@ -239,6 +251,7 @@ fn test_new_map() {
         initial.insert(
             i,
             StateGroupEntry {
+                in_range: true,
                 prev_state_group: prev,
                 state_map: StateMap::new(),
             },

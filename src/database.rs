@@ -17,7 +17,11 @@ use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 use postgres::{fallible_iterator::FallibleIterator, types::ToSql, Client};
 use postgres_openssl::MakeTlsConnector;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use std::{borrow::Cow, collections::BTreeMap, fmt};
+use std::{
+    borrow::Cow,
+    collections::BTreeMap,
+    fmt,
+};
 
 use super::StateGroupEntry;
 
@@ -40,7 +44,8 @@ use super::StateGroupEntry;
 pub fn get_data_from_db(
     db_url: &str,
     room_id: &str,
-    max_state_group: Option<i64>,
+    min_state_group: Option<i64>,
+    groups_to_compress: Option<i64>,
 ) -> BTreeMap<i64, StateGroupEntry> {
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
     builder.set_verify(SslVerifyMode::NONE);
@@ -48,13 +53,18 @@ pub fn get_data_from_db(
 
     let mut client = Client::connect(db_url, connector).unwrap();
 
-    let mut state_group_map = get_initial_data_from_db(&mut client, room_id, max_state_group);
+    let max_group_found = find_max_group(&mut client, room_id, min_state_group, groups_to_compress);
+
+    let mut state_group_map = get_initial_data_from_db(&mut client, room_id, min_state_group, max_group_found);
 
     println!("Got initial state from database. Checking for any missing state groups...");
 
     // Due to reasons some of the state groups appear in the edges table, but
-    // not in the state_groups_state table. This means they don't get included
-    // in our DB queries, so we have to fetch any missing groups explicitly.
+    // not in the state_groups_state table. E.g. the predecessor of a node is
+    // not within the range specified by min_state_group and groups_to_compress
+    // This means they don't get included in our DB queries, so we have to fetch
+    // any missing groups explicitly.
+    //
     // Since the returned groups may themselves reference groups we don't have,
     // we need to do this recursively until we don't find any more missing.
     //
@@ -86,18 +96,51 @@ pub fn get_data_from_db(
 
         println!("Missing {} state groups", missing_sgs.len());
 
-        let map = get_missing_from_db(&mut client, &missing_sgs);
-        state_group_map.extend(map.into_iter());
+        // find state groups not picked up by
+        let map = get_missing_from_db(&mut client, &missing_sgs, min_state_group, max_group_found);
+        for (k, v) in map.into_iter() {
+            if !state_group_map.contains_key(&k) {
+                state_group_map.insert(k, v);
+            }
+        }
     }
 
     state_group_map
 }
 
+fn find_max_group(
+    client: &mut Client,
+    room_id: &str,
+    min_state_group: Option<i64>,
+    groups_to_compress: Option<i64>,
+) -> i64 {
+    // Get list of state_id's in a certain room
+    let sql = r#"
+        SELECT m.id
+        FROM state_groups AS m
+        WHERE m.room_id = $1
+    "#;
+
+    // Adds additional constraint if a groups_to_compress has been specified
+    // Then sends query to the datatbase
+    let rows = if let (Some(min), Some(count)) = (min_state_group, groups_to_compress) {
+        let params: Vec<&dyn ToSql> = vec![&room_id, &min, &count];
+        client.query_raw(format!(r"{} AND m.id >= $2 LIMIT $3", sql).as_str(), params)
+    } else {
+        client.query_raw(sql, &[room_id])
+    }
+    .unwrap();
+
+    let final_row = rows.last().unwrap().unwrap();
+    final_row.get(0)
+}
+
 /// Fetch the entries in state_groups_state and immediate predecessors for
 /// a specific room.
 ///
-/// - Fetches rows with group id lower than max
+/// - Fetches first [groups_to_compress] rows with group id higher than min
 /// - Stores the group id, predecessor id and deltas into a map
+/// - returns map and maximum row that was considered
 ///
 /// # Arguments
 ///
@@ -110,7 +153,8 @@ pub fn get_data_from_db(
 fn get_initial_data_from_db(
     client: &mut Client,
     room_id: &str,
-    max_state_group: Option<i64>,
+    min_state_group: Option<i64>,
+    max_group_found: i64,
 ) -> BTreeMap<i64, StateGroupEntry> {
     // Query to get id, predecessor and delta for each state group
     let sql = r#"
@@ -123,9 +167,9 @@ fn get_initial_data_from_db(
 
     // Adds additional constraint if a max_state_group has been specified
     // Then sends query to the datatbase
-    let mut rows = if let Some(s) = max_state_group {
-        let params: Vec<&dyn ToSql> = vec![&room_id, &s];
-        client.query_raw(format!(r"{} AND m.id <= $2", sql).as_str(), params)
+    let mut rows = if let Some(min) = min_state_group {
+        let params: Vec<&dyn ToSql> = vec![&room_id, &min, &max_group_found];
+        client.query_raw(format!(r"{} AND m.id >= $2 AND m.id <= $3", sql).as_str(), params)
     } else {
         client.query_raw(sql, &[room_id])
     }
@@ -145,8 +189,9 @@ fn get_initial_data_from_db(
         // The row in the map to copy the data to
         let entry = state_group_map.entry(row.get(0)).or_default();
 
-        // Save the predecessor (this may already be there)
+        // Save the predecessor and mark for compression (this may already be there)
         entry.prev_state_group = row.get(1);
+        entry.in_range = true;
 
         // Copy the single delta from the predecessor stored in this row
         if let Some(etype) = row.get::<_, Option<String>>(2) {
@@ -174,31 +219,58 @@ fn get_initial_data_from_db(
 ///
 /// * `client`          -   A Postgres client to make requests with
 /// * `missing_sgs`     -   An array of missing state_group ids
+/// * 'min_state_group' -   Minimum state_group id to mark as in range
+/// * 'max_group_found' -   Maximum state_group id to mark as in range
 
-fn get_missing_from_db(client: &mut Client, missing_sgs: &[i64]) -> BTreeMap<i64, StateGroupEntry> {
+fn get_missing_from_db(
+    client: &mut Client,
+    missing_sgs: &[i64],
+    min_state_group: Option<i64>,
+    max_group_found: i64,
+) -> BTreeMap<i64, StateGroupEntry> {
+    // Due to "reasons" it is possible that some states only appear in edges table and not in state_groups table
+    // so since we know the IDs we're looking for as they are the missing predecessors, we can find them by 
+    // left joining onto the edges table (instead of the state_group table!)
+    let sql = r#"
+        SELECT target.prev_state_group, source.prev_state_group, state.type, state.state_key, state.event_id
+        FROM state_group_edges AS target
+        LEFT JOIN state_group_edges AS source ON (target.prev_state_group = source.state_group)
+        LEFT JOIN state_groups_state AS state ON (target.prev_state_group = state.state_group)
+        WHERE target.prev_state_group = ANY($1)
+    "#;
+
     let mut rows = client
         .query_raw(
-            r#"
-                SELECT state_group, prev_state_group
-                FROM state_group_edges
-                WHERE state_group = ANY($1)
-            "#,
+            sql,
             &[missing_sgs],
         )
         .unwrap();
 
-    // initialise the map with empty entries (the missing group may not
-    // have a prev_state_group either)
-    let mut state_group_map: BTreeMap<i64, StateGroupEntry> = missing_sgs
-        .iter()
-        .map(|sg| (*sg, StateGroupEntry::default()))
-        .collect();
+    let mut state_group_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
 
     while let Some(row) = rows.next().unwrap() {
-        let state_group = row.get(0);
-        let entry = state_group_map.get_mut(&state_group).unwrap();
+        let id = row.get(0);
+        // The row in the map to copy the data to
+        let entry = state_group_map.entry(row.get(0)).or_default();
+
+        // Save the predecessor and mark for compression (this may already be there)
+        // Also may well not exist!
         entry.prev_state_group = row.get(1);
-    }
+        if !min_state_group.is_none() {
+            if min_state_group.unwrap() <= id && id <= max_group_found {
+                entry.in_range = true;
+            }
+        }
+
+        // Copy the single delta from the predecessor stored in this row
+        if let Some(etype) = row.get::<_, Option<String>>(2) {
+            entry.state_map.insert(
+                &etype,
+                &row.get::<_, String>(3),
+                row.get::<_, String>(4).into(),
+            );
+        }
+    }    
 
     state_group_map
 }
