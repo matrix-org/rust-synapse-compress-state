@@ -219,7 +219,8 @@ pub fn run(mut config: Config) {
         config.min_state_group,
         config.groups_to_compress,
     );
-
+    println!("Fetched state groups up to {}", max_group_found);
+    
     println!("Number of state groups: {}", state_group_map.len());
 
     let original_summed_size = state_group_map
