@@ -94,14 +94,14 @@ pub fn get_data_from_db(
             .collect();
 
         if missing_sgs.is_empty() {
-            println!("No missing state groups");
+            // println!("No missing state groups");
             break;
         }
 
         missing_sgs.sort_unstable();
         missing_sgs.dedup();
 
-        println!("Missing {} state groups", missing_sgs.len());
+        // println!("Missing {} state groups", missing_sgs.len());
 
         // find state groups not picked up by
         let map = get_missing_from_db(&mut client, &missing_sgs, min_state_group, max_group_found);
