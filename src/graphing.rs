@@ -27,7 +27,7 @@ fn output_csv(groups: &Graph, edges_output: &mut File, nodes_output: &mut File) 
     }
 }
 
-pub fn make_graphs(before: Graph, after: Graph) {
+pub fn make_graphs(before: &Graph, after: &Graph) {
     let mut before_edges_file = File::create("before_edges.csv").unwrap();
     let mut before_nodes_file = File::create("before_nodes.csv").unwrap();
     let mut after_edges_file = File::create("after_edges.csv").unwrap();

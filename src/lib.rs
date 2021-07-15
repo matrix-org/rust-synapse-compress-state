@@ -76,11 +76,11 @@ pub struct Config {
     output_file: Option<File>,
     // The ID of the room who's state is being compressed
     room_id: String,
-    // The group to start compressing from 
+    // The group to start compressing from
     // N.B. THIS STATE ITSELF IS NOT COMPRESSED!!!
-    // Note there is no state 0 so if want to start 
+    // Note there is no state 0 so if want to start
     min_state_group: Option<i64>,
-    // How many groups to do the compression on 
+    // How many groups to do the compression on
     // Note: State groups within the range specified will get compressed
     // if they are in the state_groups table. States that only appear in
     // the edges table MIGHT NOT get compressed - it is assumed that these
@@ -121,16 +121,14 @@ impl Config {
                 .value_name("MIN_STATE_GROUP")
                 .help("The state group to start processing from (non inclusive)")
                 .takes_value(true)
-                .required(false)
-                .requires("groups_to_compress"),
+                .required(false),
         ).arg(
             Arg::with_name("groups_to_compress")
                 .short("n")
                 .value_name("GROUPS_TO_COMPRESS")
                 .help("How many groups to load into memory to compress")
                 .takes_value(true)
-                .required(false)
-                .requires("min_state_group"),
+                .required(false),
         ).arg(
             Arg::with_name("output_file")
                 .short("o")
@@ -215,7 +213,7 @@ pub fn run(mut config: Config) {
     // First we need to get the current state groups
     println!("Fetching state from DB for room '{}'...", config.room_id);
 
-    let state_group_map = database::get_data_from_db(
+    let (state_group_map, max_group_found) = database::get_data_from_db(
         &config.db_url,
         &config.room_id,
         config.min_state_group,
@@ -236,7 +234,7 @@ pub fn run(mut config: Config) {
 
     let compressor = Compressor::compress(&state_group_map, &config.level_sizes.0);
 
-    let new_state_group_map = compressor.new_state_group_map;
+    let new_state_group_map = &compressor.new_state_group_map;
 
     // Done! Now to print a bunch of stats.
 
@@ -275,7 +273,7 @@ pub fn run(mut config: Config) {
     output_sql(&mut config, &state_group_map, &new_state_group_map);
 
     if config.graphs {
-        graphing::make_graphs(state_group_map, new_state_group_map);
+        graphing::make_graphs(&state_group_map, &new_state_group_map);
     }
 }
 

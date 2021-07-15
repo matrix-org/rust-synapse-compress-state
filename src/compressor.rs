@@ -146,7 +146,7 @@ impl<'a> Compressor<'a> {
             if !entry.in_range {
                 let new_entry = StateGroupEntry {
                     // in_range is kept the same so that the new entry is equal to the old entry
-                    // otherwise it might trigger a useless database transaction 
+                    // otherwise it might trigger a useless database transaction
                     in_range: entry.in_range,
                     prev_state_group: entry.prev_state_group,
                     state_map: entry.state_map.clone(),
@@ -154,10 +154,7 @@ impl<'a> Compressor<'a> {
                 // Paranoidly assert that not making changes to this entry
                 // could probably be removed...
                 assert!(new_entry == *entry);
-                self.new_state_group_map.insert(
-                    state_group,
-                    new_entry,
-                );
+                self.new_state_group_map.insert(state_group, new_entry);
 
                 continue;
             }
