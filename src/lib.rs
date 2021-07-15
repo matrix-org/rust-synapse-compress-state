@@ -68,12 +68,29 @@ impl FromStr for LevelSizes {
 
 /// Contains configuration information for this run of the compressor
 pub struct Config {
+    // the url for the postgres database
+    // this should be of the form postgres://user:pass@domain/database
     db_url: String,
+    // The file where the transactions are written that would carry out
+    // the compression that get's calculated
     output_file: Option<File>,
+    // The ID of the room who's state is being compressed
     room_id: String,
+    // The group to start compressing from 
+    // N.B. THIS STATE ITSELF IS NOT COMPRESSED!!!
+    // Note there is no state 0 so if want to start 
     min_state_group: Option<i64>,
+    // How many groups to do the compression on 
+    // Note: State groups within the range specified will get compressed
+    // if they are in the state_groups table. States that only appear in
+    // the edges table MIGHT NOT get compressed - it is assumed that these
+    // groups have no associated state. (Note that this was also an assumption
+    // in previous versions of the state compressor)
     groups_to_compress: Option<i64>,
+    // The sizes of the different levels in the new state_group tree being built
     level_sizes: LevelSizes,
+    // Whether or not to output before and after directed graphs (these can be
+    // visualised in somthing like Gephi)
     graphs: bool,
 }
 
@@ -102,7 +119,7 @@ impl Config {
             Arg::with_name("min_state_group")
                 .short("m")
                 .value_name("MIN_STATE_GROUP")
-                .help("The state group to start processing from")
+                .help("The state group to start processing from (non inclusive)")
                 .takes_value(true)
                 .required(false)
                 .requires("groups_to_compress"),
@@ -295,6 +312,7 @@ fn output_sql(
         for (sg, old_entry) in old_map {
             let new_entry = &new_map[sg];
 
+            // N.B. also checks if in_range fields agree
             if old_entry != new_entry {
                 writeln!(output, "BEGIN;").unwrap();
 

@@ -141,15 +141,24 @@ impl<'a> Compressor<'a> {
         pb.enable_steady_tick(100);
 
         for (&state_group, entry) in self.original_state_map {
+            // Check whether this entry is in_range or is just present in the map due to being
+            // a predecessor of a group that IS in_range for compression
             if !entry.in_range {
+                let new_entry = StateGroupEntry {
+                    // in_range is kept the same so that the new entry is equal to the old entry
+                    // otherwise it might trigger a useless database transaction 
+                    in_range: entry.in_range,
+                    prev_state_group: entry.prev_state_group,
+                    state_map: entry.state_map.clone(),
+                };
+                // Paranoidly assert that not making changes to this entry
+                // could probably be removed...
+                assert!(new_entry == *entry);
                 self.new_state_group_map.insert(
                     state_group,
-                    StateGroupEntry {
-                        in_range: entry.in_range,
-                        prev_state_group: entry.prev_state_group,
-                        state_map: entry.state_map.clone(),
-                    },
+                    new_entry,
                 );
+
                 continue;
             }
             let mut prev_state_group = None;

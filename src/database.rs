@@ -29,17 +29,18 @@ use super::StateGroupEntry;
 /// specific room.
 ///
 /// - Connects to the database
-/// - Fetches rows with group id lower than max
+/// - Fetches the first [group] rows with group id after [min]
 /// - Recursively searches for missing predecessors and adds those
 ///
 /// # Arguments
 ///
-/// * `room_id`         -   The ID of the room in the database
-/// * `db_url`          -   The URL of a Postgres database. This should be of the
-///                         form: "postgresql://user:pass@domain:port/database"
-/// * `max_state_group` -   If specified, then only fetch the entries for state
-///                         groups lower than or equal to this number. (N.B. all
-///                         predecessors are also fetched)
+/// * `room_id`             -   The ID of the room in the database
+/// * `db_url`              -   The URL of a Postgres database. This should be of the
+///                             form: "postgresql://user:pass@domain:port/database"
+/// * `min_state_group`     -   If specified, then only fetch the entries for state
+///                             groups greater than (but not equal) to this number. It
+///                             also requires groups_to_compress to be specified
+/// * 'groups_to_compress'  -   The number of groups to get from the database before stopping
 
 pub fn get_data_from_db(
     db_url: &str,
@@ -47,12 +48,16 @@ pub fn get_data_from_db(
     min_state_group: Option<i64>,
     groups_to_compress: Option<i64>,
 ) -> BTreeMap<i64, StateGroupEntry> {
+    // connect to the database
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
     builder.set_verify(SslVerifyMode::NONE);
     let connector = MakeTlsConnector::new(builder.build());
 
     let mut client = Client::connect(db_url, connector).unwrap();
 
+    // Search for the group id of the groups_to_compress'th group after min_state_group
+    // If this is saved, then the compressor can continue by having min_state_group being 
+    // set to this maximum
     let max_group_found = find_max_group(&mut client, room_id, min_state_group, groups_to_compress);
 
     let mut state_group_map = get_initial_data_from_db(&mut client, room_id, min_state_group, max_group_found);
@@ -60,16 +65,15 @@ pub fn get_data_from_db(
     println!("Got initial state from database. Checking for any missing state groups...");
 
     // Due to reasons some of the state groups appear in the edges table, but
-    // not in the state_groups_state table. E.g. the predecessor of a node is
-    // not within the range specified by min_state_group and groups_to_compress
+    // not in the state_groups_state table.
+    //
+    // Also it is likely that the predecessor of a node will not be within the
+    // chunk that was specified by min_state_group and groups_to_compress.
     // This means they don't get included in our DB queries, so we have to fetch
     // any missing groups explicitly.
     //
     // Since the returned groups may themselves reference groups we don't have,
     // we need to do this recursively until we don't find any more missing.
-    //
-    // N.B. This does NOT currently fetch the deltas for the missing groups!
-    // By carefully chosen max_state_group this might cause issues...?
     loop {
         let mut missing_sgs: Vec<_> = state_group_map
             .iter()
@@ -107,7 +111,17 @@ pub fn get_data_from_db(
 
     state_group_map
 }
-
+/// Returns the group ID of the last group to be compressed
+///
+/// This can be saved so that future runs of the compressor only
+/// continue from after this point
+///
+/// # Arguments
+///
+/// * `client`              -   A Postgres client to make requests with
+/// * `room_id`             -   The ID of the room in the database
+/// * `min_state_group`     -   The lower limit (non inclusive) of group id's to compress
+/// * 'groups_to_compress'  -   How many groups to compress
 fn find_max_group(
     client: &mut Client,
     room_id: &str,
@@ -125,7 +139,7 @@ fn find_max_group(
     // Then sends query to the datatbase
     let rows = if let (Some(min), Some(count)) = (min_state_group, groups_to_compress) {
         let params: Vec<&dyn ToSql> = vec![&room_id, &min, &count];
-        client.query_raw(format!(r"{} AND m.id >= $2 LIMIT $3", sql).as_str(), params)
+        client.query_raw(format!(r"{} AND m.id > $2 LIMIT $3", sql).as_str(), params)
     } else {
         client.query_raw(sql, &[room_id])
     }
@@ -146,9 +160,10 @@ fn find_max_group(
 ///
 /// * `client`          -   A Postgres client to make requests with
 /// * `room_id`         -   The ID of the room in the database
-/// * `max_state_group` -   If specified, then only fetch the entries for state
-///                         groups lower than or equal to this number. (N.B. doesn't
-///                         fetch IMMEDIATE predecessors if ID is above this number)
+/// * `min_state_group` -   If specified, then only fetch the entries for state
+///                         groups greater than (but not equal) to this number. It
+///                         also requires groups_to_compress to be specified
+/// * 'max_group_found' -   The upper limit on state_groups ids to get from the database
 
 fn get_initial_data_from_db(
     client: &mut Client,
@@ -156,7 +171,7 @@ fn get_initial_data_from_db(
     min_state_group: Option<i64>,
     max_group_found: i64,
 ) -> BTreeMap<i64, StateGroupEntry> {
-    // Query to get id, predecessor and delta for each state group
+    // Query to get id, predecessor and deltas for each state group
     let sql = r#"
         SELECT m.id, prev_state_group, type, state_key, s.event_id
         FROM state_groups AS m
@@ -165,18 +180,18 @@ fn get_initial_data_from_db(
         WHERE m.room_id = $1
     "#;
 
-    // Adds additional constraint if a max_state_group has been specified
-    // Then sends query to the datatbase
+    // Adds additional constraint if minimum state_group has been specified.
+    // note that the maximum group only affects queries if there is also a minimum
+    // otherwise it is assumed that ALL groups should be fetched
     let mut rows = if let Some(min) = min_state_group {
         let params: Vec<&dyn ToSql> = vec![&room_id, &min, &max_group_found];
-        client.query_raw(format!(r"{} AND m.id >= $2 AND m.id <= $3", sql).as_str(), params)
+        client.query_raw(format!(r"{} AND m.id > $2 AND m.id <= $3", sql).as_str(), params)
     } else {
         client.query_raw(sql, &[room_id])
     }
     .unwrap();
 
     // Copy the data from the database into a map
-
     let mut state_group_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
 
     let pb = ProgressBar::new_spinner();
@@ -190,6 +205,7 @@ fn get_initial_data_from_db(
         let entry = state_group_map.entry(row.get(0)).or_default();
 
         // Save the predecessor and mark for compression (this may already be there)
+        // TODO: slightly fewer redundant rewrites
         entry.prev_state_group = row.get(1);
         entry.in_range = true;
 
@@ -228,7 +244,7 @@ fn get_missing_from_db(
     min_state_group: Option<i64>,
     max_group_found: i64,
 ) -> BTreeMap<i64, StateGroupEntry> {
-    // Due to "reasons" it is possible that some states only appear in edges table and not in state_groups table
+    // "Due to reasons" it is possible that some states only appear in edges table and not in state_groups table
     // so since we know the IDs we're looking for as they are the missing predecessors, we can find them by 
     // left joining onto the edges table (instead of the state_group table!)
     let sql = r#"
@@ -257,7 +273,7 @@ fn get_missing_from_db(
         // Also may well not exist!
         entry.prev_state_group = row.get(1);
         if !min_state_group.is_none() {
-            if min_state_group.unwrap() <= id && id <= max_group_found {
+            if min_state_group.unwrap() < id && id <= max_group_found {
                 entry.in_range = true;
             }
         }
