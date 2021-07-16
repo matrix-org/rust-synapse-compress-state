@@ -17,11 +17,7 @@ use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 use postgres::{fallible_iterator::FallibleIterator, types::ToSql, Client};
 use postgres_openssl::MakeTlsConnector;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use std::{
-    borrow::Cow,
-    collections::BTreeMap,
-    fmt,
-};
+use std::{borrow::Cow, collections::BTreeMap, fmt};
 
 use super::StateGroupEntry;
 
