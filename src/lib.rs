@@ -29,9 +29,10 @@ use clap::{
     crate_authors, crate_description, crate_name, crate_version, value_t_or_exit, App, Arg,
 };
 use indicatif::{ProgressBar, ProgressStyle};
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use rayon::prelude::*;
 use state_map::StateMap;
-use std::{collections::BTreeMap, fs::File, io::Write, str::FromStr};
+use std::{borrow::Cow, collections::BTreeMap, fmt, fs::File, io::Write, str::FromStr};
 use string_cache::DefaultAtom as Atom;
 
 mod compressor;
@@ -39,15 +40,14 @@ mod database;
 mod graphing;
 
 use compressor::Compressor;
-use database::PGEscape;
 
 /// An entry for a state group. Consists of an (optional) previous group and the
 /// delta from that previous group (or the full state if no previous group)
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct StateGroupEntry {
-    in_range: bool,
-    prev_state_group: Option<i64>,
-    state_map: StateMap<Atom>,
+    pub in_range: bool,
+    pub prev_state_group: Option<i64>,
+    pub state_map: StateMap<Atom>,
 }
 
 /// Helper struct for parsing the `level_sizes` argument.
@@ -416,6 +416,27 @@ fn output_sql(
     pb.finish();
 }
 
+// TODO: find a library that has an existing safe postgres escape function
+/// Helper function that escapes the wrapped text when writing SQL
+pub struct PGEscape<'a>(pub &'a str);
+
+impl<'a> fmt::Display for PGEscape<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut delim = Cow::from("$$");
+        while self.0.contains(&delim as &str) {
+            let s: String = thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(10)
+                .map(char::from)
+                .collect();
+
+            delim = format!("${}$", s).into();
+        }
+
+        write!(f, "{}{}{}", delim, self.0, delim)
+    }
+}
+
 /// Compares two sets of state groups
 ///
 /// A state group entry contains a predecessor state group and a delta.
@@ -650,7 +671,7 @@ mod lib_tests {
     use state_map::StateMap;
     use string_cache::DefaultAtom as Atom;
 
-    use crate::{check_that_maps_match, collapse_state_maps, StateGroupEntry};
+    use crate::{check_that_maps_match, collapse_state_maps, PGEscape, StateGroupEntry};
 
     #[test]
     fn collapse_state_maps_works_for_non_snapshot() {
@@ -1016,6 +1037,25 @@ mod lib_tests {
         assert!(true);
     }
 
+    #[test]
+    fn test_pg_escape() {
+        let s = format!("{}", PGEscape("test"));
+        assert_eq!(s, "$$test$$");
+        
+        let dodgy_string = "test$$ing";
+        
+        let s = format!("{}", PGEscape(dodgy_string));
+        
+        // prefix and suffixes should match
+        let start_pos = s.find(dodgy_string).expect("expected to find dodgy string");
+        let end_pos = start_pos + dodgy_string.len();
+        assert_eq!(s[..start_pos], s[end_pos..]);
+        
+        // .. and they should start and end with '$'
+        assert_eq!(&s[0..1], "$");
+        assert_eq!(&s[start_pos - 1..start_pos], "$");
+    }
+   
     //TODO: tests for correct SQL code produced by output_sql
 }
 

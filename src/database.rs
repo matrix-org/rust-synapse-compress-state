@@ -16,8 +16,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 use postgres::{fallible_iterator::FallibleIterator, types::ToSql, Client};
 use postgres_openssl::MakeTlsConnector;
-use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use std::{borrow::Cow, collections::BTreeMap, fmt};
+use std::collections::BTreeMap;
 
 use super::StateGroupEntry;
 
@@ -288,45 +287,4 @@ fn get_missing_from_db(
     }
 
     state_group_map
-}
-
-// TODO: find a library that has an existing safe postgres escape function
-
-/// Helper function that escapes the wrapped text when writing SQL
-pub struct PGEscape<'a>(pub &'a str);
-
-impl<'a> fmt::Display for PGEscape<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut delim = Cow::from("$$");
-        while self.0.contains(&delim as &str) {
-            let s: String = thread_rng()
-                .sample_iter(&Alphanumeric)
-                .take(10)
-                .map(char::from)
-                .collect();
-
-            delim = format!("${}$", s).into();
-        }
-
-        write!(f, "{}{}{}", delim, self.0, delim)
-    }
-}
-
-#[test]
-fn test_pg_escape() {
-    let s = format!("{}", PGEscape("test"));
-    assert_eq!(s, "$$test$$");
-
-    let dodgy_string = "test$$ing";
-
-    let s = format!("{}", PGEscape(dodgy_string));
-
-    // prefix and suffixes should match
-    let start_pos = s.find(dodgy_string).expect("expected to find dodgy string");
-    let end_pos = start_pos + dodgy_string.len();
-    assert_eq!(s[..start_pos], s[end_pos..]);
-
-    // .. and they should start and end with '$'
-    assert_eq!(&s[0..1], "$");
-    assert_eq!(&s[start_pos - 1..start_pos], "$");
 }
