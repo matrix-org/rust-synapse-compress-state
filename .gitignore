@@ -4,3 +4,4 @@
 *.old
 out.sql
 *.csv
+/tests/tmp/**

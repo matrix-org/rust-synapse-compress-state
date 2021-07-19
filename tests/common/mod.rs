@@ -15,9 +15,11 @@ pub fn add_contents_to_database(room_id: &str, state_group_map: &BTreeMap<i64, S
 
     let mut client = Client::connect(DB_URL, connector).unwrap();
 
+    // build up the query
     let mut sql = "".to_string();
 
     for (sg, entry) in state_group_map {
+        // create the entry for state_groups
         sql.push_str(&format!(
             "INSERT INTO state_groups (id, room_id, event_id) VALUES ({},{},{});\n",
             sg,
@@ -25,6 +27,7 @@ pub fn add_contents_to_database(room_id: &str, state_group_map: &BTreeMap<i64, S
             PGEscape("left_blank")
         ));
 
+        // create the entry in state_group_edges IF exists
         if let Some(prev_sg) = entry.prev_state_group {
             sql.push_str(&format!(
                 "INSERT INTO state_group_edges (state_group, prev_state_group) VALUES ({}, {});\n",
@@ -32,6 +35,7 @@ pub fn add_contents_to_database(room_id: &str, state_group_map: &BTreeMap<i64, S
             ));
         }
 
+        // write entry for each row in delta
         if !entry.state_map.is_empty() {
             sql.push_str("INSERT INTO state_groups_state (state_group, room_id, type, state_key, event_id) VALUES");
 
@@ -57,7 +61,6 @@ pub fn add_contents_to_database(room_id: &str, state_group_map: &BTreeMap<i64, S
     }
 
     println!("{}", sql);
-    // client.execute(&sql[..], &[]).unwrap();
     client.batch_execute(&sql).unwrap();
 }
 
@@ -69,6 +72,7 @@ pub fn empty_database() {
 
     let mut client = Client::connect(DB_URL, connector).unwrap();
 
+    // delete all the contents from all three tables
     let mut sql = "".to_string();
     sql.push_str("DELETE FROM state_groups;\n");
     sql.push_str("DELETE FROM state_group_edges;\n");
