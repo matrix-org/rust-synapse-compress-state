@@ -25,9 +25,10 @@ use clap::{
     crate_authors, crate_description, crate_name, crate_version, value_t_or_exit, App, Arg,
 };
 use indicatif::{ProgressBar, ProgressStyle};
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use rayon::prelude::*;
 use state_map::StateMap;
-use std::{collections::BTreeMap, fs::File, io::Write, str::FromStr};
+use std::{borrow::Cow, collections::BTreeMap, fmt, fs::File, io::Write, str::FromStr};
 use string_cache::DefaultAtom as Atom;
 
 mod compressor;
@@ -35,17 +36,18 @@ mod database;
 mod graphing;
 
 use compressor::Compressor;
-use database::PGEscape;
 
 /// An entry for a state group. Consists of an (optional) previous group and the
 /// delta from that previous group (or the full state if no previous group)
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct StateGroupEntry {
-    prev_state_group: Option<i64>,
-    state_map: StateMap<Atom>,
+    pub in_range: bool,
+    pub prev_state_group: Option<i64>,
+    pub state_map: StateMap<Atom>,
 }
 
 /// Helper struct for parsing the `level_sizes` argument.
+#[derive(PartialEq, Debug)]
 struct LevelSizes(Vec<usize>);
 
 impl FromStr for LevelSizes {
@@ -67,13 +69,31 @@ impl FromStr for LevelSizes {
 
 /// Contains configuration information for this run of the compressor
 pub struct Config {
+    // the url for the postgres database
+    // this should be of the form postgres://user:pass@domain/database
     db_url: String,
+    // The file where the transactions are written that would carry out
+    // the compression that get's calculated
     output_file: Option<File>,
+    // The ID of the room who's state is being compressed
     room_id: String,
-    max_state_group: Option<i64>,
-    min_saved_rows: Option<i32>,
-    transactions: bool,
+    // The group to start compressing from
+    // N.B. THIS STATE ITSELF IS NOT COMPRESSED!!!
+    // Note there is no state 0 so if want to compress all then can enter 0
+    // (this is the same as leaving it blank)
+    min_state_group: Option<i64>,
+    // How many groups to do the compression on
+    // Note: State groups within the range specified will get compressed
+    // if they are in the state_groups table. States that only appear in
+    // the edges table MIGHT NOT get compressed - it is assumed that these
+    // groups have no associated state. (Note that this was also an assumption
+    // in previous versions of the state compressor, and would only be a problem
+    // if the database was in a bad way already...)
+    groups_to_compress: Option<i64>,
+    // The sizes of the different levels in the new state_group tree being built
     level_sizes: LevelSizes,
+    // Whether or not to output before and after directed graphs (these can be
+    // visualised in somthing like Gephi)
     graphs: bool,
 }
 
@@ -88,7 +108,10 @@ impl Config {
             Arg::with_name("postgres-url")
                 .short("p")
                 .value_name("URL")
-                .help("The url for connecting to the postgres database")
+                .help("The url for connecting to the postgres database.")
+                .long_help(concat!(
+                "The url for connecting to the postgres database.This should be of",
+                " the form \"postgresql://username:password@mydomain.com/database\""))
                 .takes_value(true)
                 .required(true),
         ).arg(
@@ -99,17 +122,20 @@ impl Config {
                 .takes_value(true)
                 .required(true),
         ).arg(
-            Arg::with_name("max_state_group")
-                .short("s")
-                .value_name("MAX_STATE_GROUP")
-                .help("The maximum state group to process up to")
+            Arg::with_name("min_state_group")
+                .short("m")
+                .value_name("MIN_STATE_GROUP")
+                .help("The state group to start processing from (non inclusive)")
                 .takes_value(true)
                 .required(false),
         ).arg(
-            Arg::with_name("min_saved_rows")
-                .short("m")
-                .value_name("COUNT")
-                .help("Suppress output if fewer than COUNT rows would be saved")
+            Arg::with_name("groups_to_compress")
+                .short("n")
+                .value_name("GROUPS_TO_COMPRESS")
+                .help("How many groups to load into memory to compress") 
+                .long_help(concat!(
+                "How many groups to load into memory to compress (starting from",
+                " the 1st group in the room or the group specified by -m)"))
                 .takes_value(true)
                 .required(false),
         ).arg(
@@ -118,11 +144,6 @@ impl Config {
                 .value_name("FILE")
                 .help("File to output the changes to in SQL")
                 .takes_value(true),
-        ).arg(
-            Arg::with_name("transactions")
-                .short("t")
-                .help("Whether to wrap each state group change in a transaction")
-                .requires("output_file"),
         ).arg(
             Arg::with_name("level_sizes")
                 .short("l")
@@ -143,7 +164,10 @@ impl Config {
         ).arg(
             Arg::with_name("graphs")
                 .short("g")
-                .help("Whether to produce graphs of state groups before and after compression instead of SQL")
+                .help("Output before and after graphs")
+                .long_help(concat!("If this flag is set then output the node and edge information for",
+                " the state_group directed graph built up from the predecessor state_group links.",
+                " These can be looked at in something like Gephi (https://gephi.org)"))
         ).get_matches();
 
         let db_url = matches
@@ -158,15 +182,13 @@ impl Config {
             .value_of("room_id")
             .expect("room_id should be required since no file");
 
-        let max_state_group = matches
-            .value_of("max_state_group")
-            .map(|s| s.parse().expect("max_state_group must be an integer"));
+        let min_state_group = matches
+            .value_of("min_state_group")
+            .map(|s| s.parse().expect("min_state_group must be an integer"));
 
-        let min_saved_rows = matches
-            .value_of("min_saved_rows")
-            .map(|v| v.parse().expect("COUNT must be an integer"));
-
-        let transactions = matches.is_present("transactions");
+        let groups_to_compress = matches
+            .value_of("groups_to_compress")
+            .map(|s| s.parse().expect("groups_to_compress must be an integer"));
 
         let level_sizes = value_t_or_exit!(matches, "level_sizes", LevelSizes);
 
@@ -176,9 +198,8 @@ impl Config {
             db_url: String::from(db_url),
             output_file,
             room_id: String::from(room_id),
-            max_state_group,
-            min_saved_rows,
-            transactions,
+            min_state_group,
+            groups_to_compress,
             level_sizes,
             graphs,
         }
@@ -204,8 +225,13 @@ pub fn run(mut config: Config) {
     // First we need to get the current state groups
     println!("Fetching state from DB for room '{}'...", config.room_id);
 
-    let state_group_map =
-        database::get_data_from_db(&config.db_url, &config.room_id, config.max_state_group);
+    let (state_group_map, max_group_found) = database::get_data_from_db(
+        &config.db_url,
+        &config.room_id,
+        config.min_state_group,
+        config.groups_to_compress,
+    );
+    println!("Fetched state groups up to {}", max_group_found);
 
     println!("Number of state groups: {}", state_group_map.len());
 
@@ -221,7 +247,7 @@ pub fn run(mut config: Config) {
 
     let compressor = Compressor::compress(&state_group_map, &config.level_sizes.0);
 
-    let new_state_group_map = compressor.new_state_group_map;
+    let new_state_group_map = &compressor.new_state_group_map;
 
     // Done! Now to print a bunch of stats.
 
@@ -251,17 +277,6 @@ pub fn run(mut config: Config) {
         compressor.stats.state_groups_changed
     );
 
-    if let Some(min) = config.min_saved_rows {
-        let saving = (original_summed_size - compressed_summed_size) as i32;
-        if saving < min {
-            println!(
-                "Only {} rows would be saved by this compression. Skipping output.",
-                saving
-            );
-            return;
-        }
-    }
-
     check_that_maps_match(&state_group_map, &new_state_group_map);
 
     // If we are given an output file, we output the changes as SQL. If the
@@ -271,7 +286,7 @@ pub fn run(mut config: Config) {
     output_sql(&mut config, &state_group_map, &new_state_group_map);
 
     if config.graphs {
-        graphing::make_graphs(state_group_map, new_state_group_map);
+        graphing::make_graphs(&state_group_map, &new_state_group_map);
     }
 }
 
@@ -308,10 +323,9 @@ fn output_sql(
         for (sg, old_entry) in old_map {
             let new_entry = &new_map[sg];
 
+            // N.B. also checks if in_range fields agree
             if old_entry != new_entry {
-                if config.transactions {
-                    writeln!(output, "BEGIN;").unwrap();
-                }
+                writeln!(output, "BEGIN;").unwrap();
 
                 writeln!(
                     output,
@@ -354,9 +368,7 @@ fn output_sql(
                     writeln!(output, ";").unwrap();
                 }
 
-                if config.transactions {
-                    writeln!(output, "COMMIT;").unwrap();
-                }
+                writeln!(output, "COMMIT;").unwrap();
                 writeln!(output).unwrap();
             }
 
@@ -365,6 +377,27 @@ fn output_sql(
     }
 
     pb.finish();
+}
+
+// TODO: find a library that has an existing safe postgres escape function
+/// Helper function that escapes the wrapped text when writing SQL
+pub struct PGEscape<'a>(pub &'a str);
+
+impl<'a> fmt::Display for PGEscape<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut delim = Cow::from("$$");
+        while self.0.contains(&delim as &str) {
+            let s: String = thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(10)
+                .map(char::from)
+                .collect();
+
+            delim = format!("${}$", s).into();
+        }
+
+        write!(f, "{}{}{}", delim, self.0, delim)
+    }
 }
 
 /// Compares two sets of state groups
@@ -455,9 +488,8 @@ impl Config {
         db_url: String,
         output_file: String,
         room_id: String,
-        max_state_group: String,
-        min_saved_rows: String,
-        transactions: bool,
+        min_state_group: String,
+        groups_to_compress: String,
         level_sizes: String,
         graphs: bool,
     ) -> Config {
@@ -475,27 +507,30 @@ impl Config {
             panic!("room_id is required");
         }
 
-        let mut max_row: Option<i64> = None;
-        if !max_state_group.is_empty() {
-            max_row = Some(max_state_group.parse().unwrap());
+        let mut min_row: Option<i64> = None;
+        if !min_state_group.is_empty() {
+            min_row = Some(min_state_group.parse().unwrap());
         }
-        let max_state_group = max_row;
+        let min_state_group = min_row;
 
-        let mut min_count: Option<i32> = None;
-        if !min_saved_rows.is_empty() {
-            min_count = Some(min_saved_rows.parse().unwrap());
+        let mut num_groups: Option<i64> = None;
+        if !groups_to_compress.is_empty() {
+            num_groups = Some(groups_to_compress.parse().unwrap());
         }
-        let min_saved_rows = min_count;
+        let groups_to_compress = num_groups;
 
-        let level_sizes: LevelSizes = level_sizes.parse().unwrap();
+        let mut sizes = "100,50,25".to_string();
+        if !level_sizes.is_empty() {
+            sizes = level_sizes;
+        }
+        let level_sizes: LevelSizes = sizes.parse().unwrap();
 
         Config {
             db_url,
             output_file,
             room_id,
-            max_state_group,
-            min_saved_rows,
-            transactions,
+            min_state_group,
+            groups_to_compress,
             level_sizes,
             graphs,
         }
@@ -509,9 +544,8 @@ impl Config {
     db_url = "String::from(\"\")",
     output_file = "String::from(\"\")",
     room_id = "String::from(\"\")",
-    max_state_group = "String::from(\"\")",
-    min_saved_rows = "String::from(\"\")",
-    transactions = false,
+    min_state_group = "String::from(\"\")",
+    groups_to_compress = "String::from(\"\")",
     level_sizes = "String::from(\"100,50,25\")",
     graphs = false
 )]
@@ -519,9 +553,8 @@ fn run_compression(
     db_url: String,
     output_file: String,
     room_id: String,
-    max_state_group: String,
-    min_saved_rows: String,
-    transactions: bool,
+    min_state_group: String,
+    groups_to_compress: String,
     level_sizes: String,
     graphs: bool,
 ) {
@@ -529,9 +562,8 @@ fn run_compression(
         db_url,
         output_file,
         room_id,
-        max_state_group,
-        min_saved_rows,
-        transactions,
+        min_state_group,
+        groups_to_compress,
         level_sizes,
         graphs,
     );
@@ -543,4 +575,546 @@ fn run_compression(
 fn synapse_compress_state(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_compression, m)?)?;
     Ok(())
+}
+
+// TESTS START HERE
+
+#[cfg(test)]
+mod level_sizes_tests {
+    use std::str::FromStr;
+
+    use crate::LevelSizes;
+
+    #[test]
+    fn from_str_produces_correct_sizes() {
+        let input_string = "100,50,25";
+
+        let levels = LevelSizes::from_str(input_string).unwrap();
+
+        let mut levels_iter = levels.0.iter();
+
+        assert_eq!(levels_iter.next().unwrap(), &100);
+        assert_eq!(levels_iter.next().unwrap(), &50);
+        assert_eq!(levels_iter.next().unwrap(), &25);
+        assert_eq!(levels_iter.next(), None);
+    }
+
+    #[test]
+    fn from_str_produces_err_if_not_list_of_numbers() {
+        let input_string = "100-sheep-25";
+
+        let result = LevelSizes::from_str(input_string);
+
+        assert!(result.is_err());
+    }
+}
+
+#[cfg(test)]
+mod lib_tests {
+    use std::collections::BTreeMap;
+
+    use state_map::StateMap;
+    use string_cache::DefaultAtom as Atom;
+
+    use crate::{check_that_maps_match, collapse_state_maps, PGEscape, StateGroupEntry};
+
+    #[test]
+    fn collapse_state_maps_works_for_non_snapshot() {
+        let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None;
+
+        // This starts with the following structure
+        //
+        // 0-1-2-3-4-5-6-7-8-9-10-11-12-13
+        //
+        // Each group i has state:
+        //     ('node','is',      i)
+        //     ('group',  j, 'seen') where j is less than i
+        for i in 0i64..=13i64 {
+            let mut entry = StateGroupEntry {
+                in_range: true,
+                prev_state_group: prev,
+                state_map: StateMap::new(),
+            };
+            entry
+                .state_map
+                .insert("group", &i.to_string(), "seen".into());
+            entry.state_map.insert("node", "is", i.to_string().into());
+
+            initial.insert(i, entry);
+
+            prev = Some(i)
+        }
+
+        let result_state = collapse_state_maps(&initial, 3);
+
+        let mut expected_state: StateMap<Atom> = StateMap::new();
+        expected_state.insert("node", "is", "3".into());
+        expected_state.insert("group", "0", "seen".into());
+        expected_state.insert("group", "1", "seen".into());
+        expected_state.insert("group", "2", "seen".into());
+        expected_state.insert("group", "3", "seen".into());
+
+        assert_eq!(result_state, expected_state);
+    }
+
+    #[test]
+    fn collapse_state_maps_works_for_snapshot() {
+        let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None;
+
+        // This starts with the following structure
+        //
+        // 0-1-2-3-4-5-6-7-8-9-10-11-12-13
+        //
+        // Each group i has state:
+        //     ('node','is',      i)
+        //     ('group',  j, 'seen') where j is less than i
+        for i in 0i64..=13i64 {
+            let mut entry = StateGroupEntry {
+                in_range: true,
+                prev_state_group: prev,
+                state_map: StateMap::new(),
+            };
+            entry
+                .state_map
+                .insert("group", &i.to_string(), "seen".into());
+            entry.state_map.insert("node", "is", i.to_string().into());
+
+            initial.insert(i, entry);
+
+            prev = Some(i)
+        }
+
+        let result_state = collapse_state_maps(&initial, 0);
+
+        let mut expected_state: StateMap<Atom> = StateMap::new();
+        expected_state.insert("node", "is", "0".into());
+        expected_state.insert("group", "0", "seen".into());
+
+        assert_eq!(result_state, expected_state);
+    }
+
+    #[test]
+    #[should_panic]
+    fn collapse_state_maps_panics_if_pred_not_in_map() {
+        let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = Some(14); // note will not be in map
+
+        // This starts with the following structure
+        //
+        // N.B. Group 14 will only exist as the predecessor of 0
+        // There is no group 14 in the map
+        //
+        // (14)-0-1-2-3-4-5-6-7-8-9-10-11-12-13
+        //
+        // Each group i has state:
+        //     ('node','is',      i)
+        //     ('group',  j, 'seen') where j is less than i
+        for i in 0i64..=13i64 {
+            let mut entry = StateGroupEntry {
+                in_range: true,
+                prev_state_group: prev,
+                state_map: StateMap::new(),
+            };
+            entry
+                .state_map
+                .insert("group", &i.to_string(), "seen".into());
+            entry.state_map.insert("node", "is", i.to_string().into());
+
+            initial.insert(i, entry);
+
+            prev = Some(i)
+        }
+
+        collapse_state_maps(&initial, 0);
+    }
+
+    #[test]
+    fn check_that_maps_match_returns_if_both_empty() {
+        check_that_maps_match(&BTreeMap::new(), &BTreeMap::new());
+        assert!(true);
+    }
+
+    #[test]
+    #[should_panic]
+    fn check_that_maps_match_panics_if_just_new_map_is_empty() {
+        let mut old_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None; // note will not be in map
+
+        // This starts with the following structure
+        //
+        // 0-1-2-3-4-5-6-7-8-9-10-11-12-13
+        //
+        // Each group i has state:
+        //     ('node','is',      i)
+        //     ('group',  j, 'seen') where j is less than i
+        for i in 0i64..=13i64 {
+            let mut entry = StateGroupEntry {
+                in_range: true,
+                prev_state_group: prev,
+                state_map: StateMap::new(),
+            };
+            entry
+                .state_map
+                .insert("group", &i.to_string(), "seen".into());
+            entry.state_map.insert("node", "is", i.to_string().into());
+
+            old_map.insert(i, entry);
+
+            prev = Some(i)
+        }
+
+        check_that_maps_match(&old_map, &BTreeMap::new());
+        assert!(true);
+    }
+
+    #[test]
+    fn check_that_maps_match_returns_if_just_old_map_is_empty() {
+        // note that this IS the desired behaviour as only want to ensure that
+        // all groups that existed BEFORE compression, will still collapse to the same
+        // states (i.e. no visible changes to rest of synapse
+
+        let mut new_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None; // note will not be in map
+
+        // This starts with the following structure
+        //
+        // 0-1-2-3-4-5-6-7-8-9-10-11-12-13
+        //
+        // Each group i has state:
+        //     ('node','is',      i)
+        //     ('group',  j, 'seen') where j is less than i
+        for i in 0i64..=13i64 {
+            let mut entry = StateGroupEntry {
+                in_range: true,
+                prev_state_group: prev,
+                state_map: StateMap::new(),
+            };
+            entry
+                .state_map
+                .insert("group", &i.to_string(), "seen".into());
+            entry.state_map.insert("node", "is", i.to_string().into());
+
+            new_map.insert(i, entry);
+
+            prev = Some(i)
+        }
+
+        check_that_maps_match(&BTreeMap::new(), &new_map);
+        assert!(true);
+    }
+
+    #[test]
+    fn check_that_maps_match_returns_if_no_changes() {
+        let mut old_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None; // note will not be in map
+
+        // This starts with the following structure
+        //
+        // 0-1-2-3-4-5-6-7-8-9-10-11-12-13
+        //
+        // Each group i has state:
+        //     ('node','is',      i)
+        //     ('group',  j, 'seen') where j is less than i
+        for i in 0i64..=13i64 {
+            let mut entry = StateGroupEntry {
+                in_range: true,
+                prev_state_group: prev,
+                state_map: StateMap::new(),
+            };
+            entry
+                .state_map
+                .insert("group", &i.to_string(), "seen".into());
+            entry.state_map.insert("node", "is", i.to_string().into());
+
+            old_map.insert(i, entry);
+
+            prev = Some(i)
+        }
+
+        check_that_maps_match(&BTreeMap::new(), &old_map.clone());
+        assert!(true);
+    }
+
+    #[test]
+    #[should_panic]
+    fn check_that_maps_match_panics_if_same_preds_but_different_deltas() {
+        let mut old_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None; // note will not be in map
+
+        // This starts with the following structure
+        //
+        // 0-1-2-3-4-5-6-7-8-9-10-11-12-13
+        //
+        // Each group i has state:
+        //     ('node','is',      i)
+        //     ('group',  j, 'seen') where j is less than i
+        for i in 0i64..=13i64 {
+            let mut entry = StateGroupEntry {
+                in_range: true,
+                prev_state_group: prev,
+                state_map: StateMap::new(),
+            };
+            entry
+                .state_map
+                .insert("group", &i.to_string(), "seen".into());
+            entry.state_map.insert("node", "is", i.to_string().into());
+
+            old_map.insert(i, entry);
+
+            prev = Some(i)
+        }
+
+        // new_map will have the same structure but the (node, is) values will be
+        // different
+        let mut new_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None; // note will not be in map
+
+        // This starts with the following structure
+        //
+        // 0-1-2-3-4-5-6-7-8-9-10-11-12-13
+        //
+        // Each group i has state:
+        //     ('node','is',    i+1) <- NOTE DIFFERENCE
+        //     ('group',  j, 'seen') where j is less than i
+        for i in 0i64..=13i64 {
+            let mut entry = StateGroupEntry {
+                in_range: true,
+                prev_state_group: prev,
+                state_map: StateMap::new(),
+            };
+            entry
+                .state_map
+                .insert("group", &i.to_string(), "seen".into());
+            entry
+                .state_map
+                .insert("node", "is", (i + 1).to_string().into());
+
+            new_map.insert(i, entry);
+
+            prev = Some(i)
+        }
+
+        check_that_maps_match(&old_map, &new_map);
+        assert!(true);
+    }
+
+    #[test]
+    fn check_that_maps_match_returns_if_same_states_but_different_structure() {
+        let mut old_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None; // note will not be in map
+
+        // This starts with the following structure
+        //
+        // 0-1-2-3-4-5-6
+        //
+        // Each group i has state:
+        //     ('node','is',      i)
+        //     ('group',  j, 'seen') where j is less than i
+        for i in 0i64..=6i64 {
+            let mut entry = StateGroupEntry {
+                in_range: true,
+                prev_state_group: prev,
+                state_map: StateMap::new(),
+            };
+            entry
+                .state_map
+                .insert("group", &i.to_string(), "seen".into());
+            entry.state_map.insert("node", "is", i.to_string().into());
+
+            old_map.insert(i, entry);
+
+            prev = Some(i)
+        }
+
+        // This is a structure that could be produced by the compressor
+        // and should pass the maps_match test:
+        //
+        // 0  3\
+        // 1  4 6
+        // 2  5
+        //
+        // State contents should be the same as before
+        let mut new_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+
+        // 0-1-2 is left the same
+        new_map.insert(0, old_map.get(&0).unwrap().clone());
+        new_map.insert(1, old_map.get(&1).unwrap().clone());
+        new_map.insert(2, old_map.get(&2).unwrap().clone());
+
+        // 3 is now a snapshot
+        let mut entry_3: StateMap<Atom> = StateMap::new();
+        entry_3.insert("node", "is", "3".into());
+        entry_3.insert("group", "0", "seen".into());
+        entry_3.insert("group", "1", "seen".into());
+        entry_3.insert("group", "2", "seen".into());
+        entry_3.insert("group", "3", "seen".into());
+        new_map.insert(
+            3,
+            StateGroupEntry {
+                in_range: true,
+                prev_state_group: None,
+                state_map: entry_3,
+            },
+        );
+
+        // 4 and 5 are also left the same
+        new_map.insert(4, old_map.get(&4).unwrap().clone());
+        new_map.insert(5, old_map.get(&5).unwrap().clone());
+
+        // 6 is a "partial" snapshot now
+        let mut entry_6: StateMap<Atom> = StateMap::new();
+        entry_6.insert("node", "is", "6".into());
+        entry_6.insert("group", "4", "seen".into());
+        entry_6.insert("group", "5", "seen".into());
+        entry_6.insert("group", "6", "seen".into());
+        new_map.insert(
+            6,
+            StateGroupEntry {
+                in_range: true,
+                prev_state_group: Some(3),
+                state_map: entry_6,
+            },
+        );
+
+        check_that_maps_match(&old_map, &new_map);
+        assert!(true);
+    }
+
+    #[test]
+    fn test_pg_escape() {
+        let s = format!("{}", PGEscape("test"));
+        assert_eq!(s, "$$test$$");
+
+        let dodgy_string = "test$$ing";
+
+        let s = format!("{}", PGEscape(dodgy_string));
+
+        // prefix and suffixes should match
+        let start_pos = s.find(dodgy_string).expect("expected to find dodgy string");
+        let end_pos = start_pos + dodgy_string.len();
+        assert_eq!(s[..start_pos], s[end_pos..]);
+
+        // .. and they should start and end with '$'
+        assert_eq!(&s[0..1], "$");
+        assert_eq!(&s[start_pos - 1..start_pos], "$");
+    }
+
+    //TODO: tests for correct SQL code produced by output_sql
+}
+
+#[cfg(test)]
+mod pyo3_tests {
+    use crate::{Config, LevelSizes};
+
+    #[test]
+    #[should_panic]
+    fn new_config_panics_if_no_db_url() {
+        let db_url = "".to_string();
+        let output_file = "".to_string();
+        let room_id = "!roomid@homeserver.com".to_string();
+        let min_state_group = "".to_string();
+        let groups_to_compress = "".to_string();
+        let level_sizes = "".to_string();
+        let graphs = false;
+
+        Config::new(
+            db_url,
+            output_file,
+            room_id,
+            min_state_group,
+            groups_to_compress,
+            level_sizes,
+            graphs,
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn new_config_panics_if_no_room_id() {
+        let db_url = "postgresql://homeserver.com/synapse".to_string();
+        let output_file = "".to_string();
+        let room_id = "".to_string();
+        let min_state_group = "".to_string();
+        let groups_to_compress = "".to_string();
+        let level_sizes = "".to_string();
+        let graphs = false;
+
+        Config::new(
+            db_url,
+            output_file,
+            room_id,
+            min_state_group,
+            groups_to_compress,
+            level_sizes,
+            graphs,
+        );
+    }
+
+    #[test]
+    fn new_config_correct_when_things_empty() {
+        // db_url and room_id have to be set or it will panic
+        let db_url = "postgresql://homeserver.com/synapse".to_string();
+        let output_file = "".to_string();
+        let room_id = "room_id".to_string();
+        let min_state_group = "".to_string();
+        let groups_to_compress = "".to_string();
+        let level_sizes = "".to_string();
+        let graphs = false;
+
+        let config = Config::new(
+            db_url.clone(),
+            output_file,
+            room_id.clone(),
+            min_state_group,
+            groups_to_compress,
+            level_sizes,
+            graphs,
+        );
+
+        assert_eq!(config.db_url, db_url);
+        assert!(config.output_file.is_none());
+        assert_eq!(config.room_id, room_id);
+        assert!(config.min_state_group.is_none());
+        assert!(config.groups_to_compress.is_none());
+        assert_eq!(
+            config.level_sizes,
+            "100,50,25".parse::<LevelSizes>().unwrap()
+        );
+        assert_eq!(config.graphs, graphs);
+    }
+
+    #[test]
+    fn new_config_correct_when_things_not_empty() {
+        // db_url and room_id have to be set or it will panic
+        let db_url = "postgresql://homeserver.com/synapse".to_string();
+        let output_file = "/tmp/myFile".to_string();
+        let room_id = "room_id".to_string();
+        let min_state_group = "3225".to_string();
+        let groups_to_compress = "970".to_string();
+        let level_sizes = "128,64,32".to_string();
+        let graphs = true;
+
+        let config = Config::new(
+            db_url.clone(),
+            output_file,
+            room_id.clone(),
+            min_state_group,
+            groups_to_compress,
+            level_sizes,
+            graphs,
+        );
+
+        assert_eq!(config.db_url, db_url);
+        assert!(!config.output_file.is_none());
+        assert_eq!(config.room_id, room_id);
+        assert_eq!(config.min_state_group, Some(3225));
+        assert_eq!(config.groups_to_compress, Some(970));
+        assert_eq!(
+            config.level_sizes,
+            "128,64,32".parse::<LevelSizes>().unwrap()
+        );
+        assert_eq!(config.graphs, graphs);
+    }
 }

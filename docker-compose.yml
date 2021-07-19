@@ -1,0 +1,16 @@
+version: '3'
+services:
+  postgres:
+    image: "postgres:latest"
+    
+    ports:
+      # N.B. format is [port on machine]:[port to expose from container]
+      - 5432:5432
+
+    environment: 
+      POSTGRES_USER: synapse_user
+      POSTGRES_PASSWORD: synapse_pass
+      POSTGRES_DB: synapse
+
+    volumes:
+      - ./tests/database_setup.sh:/docker-entrypoint-initdb.d/1_database_setup.sh 
