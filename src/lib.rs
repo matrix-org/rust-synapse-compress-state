@@ -158,7 +158,7 @@ impl Config {
         ).arg(
             Arg::with_name("graphs")
                 .short("g")
-                .help("Whether to produce graphs of state groups before and after compression instead of SQL")
+                .help("Whether to produce graphs of state groups before and after compression")
         ).get_matches();
 
         let db_url = matches
