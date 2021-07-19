@@ -101,9 +101,7 @@ pub fn get_data_from_db(
         // find state groups not picked up by
         let map = get_missing_from_db(&mut client, &missing_sgs, min_state_group, max_group_found);
         for (k, v) in map.into_iter() {
-            if !state_group_map.contains_key(&k) {
-                state_group_map.insert(k, v);
-            }
+            state_group_map.entry(k).or_insert(v);
         }
     }
 
