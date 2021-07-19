@@ -60,7 +60,6 @@ pub fn add_contents_to_database(room_id: &str, state_group_map: &BTreeMap<i64, S
         }
     }
 
-    println!("{}", sql);
     client.batch_execute(&sql).unwrap();
 }
 
