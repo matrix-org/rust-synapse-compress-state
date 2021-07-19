@@ -462,6 +462,7 @@ mod compressor_tests {
 
         assert_eq!(initial, *new_state);
     }
+
     #[test]
     fn create_new_tree_respects_levels() {
         let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();

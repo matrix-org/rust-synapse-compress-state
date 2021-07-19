@@ -110,6 +110,7 @@ pub fn get_data_from_db(
 
     (state_group_map, max_group_found)
 }
+
 /// Returns the group ID of the last group to be compressed
 ///
 /// This can be saved so that future runs of the compressor only
@@ -121,6 +122,7 @@ pub fn get_data_from_db(
 /// * `room_id`             -   The ID of the room in the database
 /// * `min_state_group`     -   The lower limit (non inclusive) of group id's to compress
 /// * 'groups_to_compress'  -   How many groups to compress
+
 fn find_max_group(
     client: &mut Client,
     room_id: &str,
@@ -287,6 +289,8 @@ fn get_missing_from_db(
 
     state_group_map
 }
+
+// TODO: find a library that has an existing safe postgres escape function
 
 /// Helper function that escapes the wrapped text when writing SQL
 pub struct PGEscape<'a>(pub &'a str);
