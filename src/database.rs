@@ -270,9 +270,9 @@ fn get_missing_from_db(
         // Save the predecessor and mark for compression (this may already be there)
         // Also may well not exist!
         entry.prev_state_group = row.get(1);
-        if !min_state_group.is_none() {
-            if min_state_group.unwrap() < id && id <= max_group_found {
-                entry.in_range = true;
+        if let Some(min) = min_state_group {
+            if min < id && id > max_group_found {
+                entry.in_range = true
             }
         }
 
