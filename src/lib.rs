@@ -108,7 +108,10 @@ impl Config {
             Arg::with_name("postgres-url")
                 .short("p")
                 .value_name("URL")
-                .help("The url for connecting to the postgres database")
+                .help("The url for connecting to the postgres database.")
+                .long_help(concat!(
+                "The url for connecting to the postgres database.This should be of",
+                " the form \"postgresql://username:password@mydomain.com/database\""))
                 .takes_value(true)
                 .required(true),
         ).arg(
@@ -129,7 +132,10 @@ impl Config {
             Arg::with_name("groups_to_compress")
                 .short("n")
                 .value_name("GROUPS_TO_COMPRESS")
-                .help("How many groups to load into memory to compress")
+                .help("How many groups to load into memory to compress") 
+                .long_help(concat!(
+                "How many groups to load into memory to compress (starting from",
+                " the 1st group in the room or the group specified by -m)"))
                 .takes_value(true)
                 .required(false),
         ).arg(
@@ -158,7 +164,10 @@ impl Config {
         ).arg(
             Arg::with_name("graphs")
                 .short("g")
-                .help("Whether to produce graphs of state groups before and after compression")
+                .help("Output before and after graphs")
+                .long_help(concat!("If this flag is set then output the node and edge information for",
+                " the state_group directed graph built up from the predecessor state_group links.",
+                " These can be looked at in something like Gephi (https://gephi.org)"))
         ).get_matches();
 
         let db_url = matches
