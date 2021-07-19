@@ -1041,21 +1041,21 @@ mod lib_tests {
     fn test_pg_escape() {
         let s = format!("{}", PGEscape("test"));
         assert_eq!(s, "$$test$$");
-        
+
         let dodgy_string = "test$$ing";
-        
+
         let s = format!("{}", PGEscape(dodgy_string));
-        
+
         // prefix and suffixes should match
         let start_pos = s.find(dodgy_string).expect("expected to find dodgy string");
         let end_pos = start_pos + dodgy_string.len();
         assert_eq!(s[..start_pos], s[end_pos..]);
-        
+
         // .. and they should start and end with '$'
         assert_eq!(&s[0..1], "$");
         assert_eq!(&s[start_pos - 1..start_pos], "$");
     }
-   
+
     //TODO: tests for correct SQL code produced by output_sql
 }
 
@@ -1092,7 +1092,7 @@ mod pyo3_tests {
     #[test]
     #[should_panic]
     fn new_config_panics_if_no_room_id() {
-        let db_url = "postres://homeserver.com/synapse".to_string();
+        let db_url = "postgresql://homeserver.com/synapse".to_string();
         let output_file = "".to_string();
         let room_id = "".to_string();
         let min_state_group = "".to_string();
@@ -1118,7 +1118,7 @@ mod pyo3_tests {
     #[test]
     fn new_config_correct_when_things_empty() {
         // db_url and room_id have to be set or it will panic
-        let db_url = "postres://homeserver.com/synapse".to_string();
+        let db_url = "postgresql://homeserver.com/synapse".to_string();
         let output_file = "".to_string();
         let room_id = "room_id".to_string();
         let min_state_group = "".to_string();
@@ -1157,7 +1157,7 @@ mod pyo3_tests {
     #[test]
     fn new_config_correct_when_things_not_empty() {
         // db_url and room_id have to be set or it will panic
-        let db_url = "postres://homeserver.com/synapse".to_string();
+        let db_url = "postgresql://homeserver.com/synapse".to_string();
         let output_file = "/tmp/myFile".to_string();
         let room_id = "room_id".to_string();
         let min_state_group = "3225".to_string();
