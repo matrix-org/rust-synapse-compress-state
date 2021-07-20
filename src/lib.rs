@@ -421,7 +421,9 @@ fn output_sql(
                     writeln!(output, ";").unwrap();
                 }
 
-                writeln!(output, "COMMIT;").unwrap();
+                if config.transactions {
+                    writeln!(output, "COMMIT;").unwrap();
+                }
                 writeln!(output).unwrap();
             }
 
