@@ -277,6 +277,11 @@ pub fn run(mut config: Config) {
         compressor.stats.state_groups_changed
     );
 
+    if ratio > 1.0 {
+        println!("This compression would not remove any rows. Skipping output.");
+        return;
+    }
+
     check_that_maps_match(&state_group_map, &new_state_group_map);
 
     // If we are given an output file, we output the changes as SQL. If the
