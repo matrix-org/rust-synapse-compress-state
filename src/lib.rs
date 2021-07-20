@@ -94,7 +94,7 @@ pub struct Config {
     // in previous versions of the state compressor, and would only be a problem
     // if the database was in a bad way already...)
     groups_to_compress: Option<i64>,
-    // If the compressor results in less than this many rows being saved then 
+    // If the compressor results in less than this many rows being saved then
     // it will abort
     min_saved_rows: Option<i32>,
     // The sizes of the different levels in the new state_group tree being built
@@ -312,12 +312,12 @@ pub fn run(mut config: Config) {
         "  Number of state groups changed: {}",
         compressor.stats.state_groups_changed
     );
-    
+
     if ratio > 1.0 {
         println!("This compression would not remove any rows. Skipping output.");
         return;
     }
-    
+
     if let Some(min) = config.min_saved_rows {
         let saving = (original_summed_size - compressed_summed_size) as i32;
         if saving < min {
