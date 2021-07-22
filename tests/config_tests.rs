@@ -1043,3 +1043,187 @@ fn run_respects_groups_to_compress() {
     // Check that the structure of the database matches the expected structure
     assert!(database_structure_matches_map(&expected))
 }
+
+
+#[test]
+#[serial(db)]
+fn run_is_idempotent_when_run_on_whole_room() {
+    let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+    let mut prev = None;
+
+    // This starts with the following structure
+    //
+    // 0-1-2 3-4-5 6-7-8 9-10-11 12-13
+    //
+    // Each group i has state:
+    //     ('node','is',      i)
+    //     ('group',  j, 'seen') - for all j less than i
+    for i in 0i64..=13i64 {
+        // if the state is a snapshot then set its predecessor to NONE
+        if [0, 3, 6, 9, 12].contains(&i) {
+            prev = None;
+        }
+
+        // create a blank entry for it
+        let mut entry = StateGroupEntry {
+            in_range: true,
+            prev_state_group: prev,
+            state_map: StateMap::new(),
+        };
+
+        // if it's a snapshot then add in all previous state
+        if prev.is_none() {
+            for j in 0i64..i {
+                entry
+                    .state_map
+                    .insert("group", &j.to_string(), "seen".into());
+            }
+        }
+
+        // add in the new state for this state group
+        entry
+            .state_map
+            .insert("group", &i.to_string(), "seen".into());
+        entry.state_map.insert("node", "is", i.to_string().into());
+
+        // put it into the initial map
+        initial.insert(i, entry);
+
+        // set this group as the predecessor for the next
+        prev = Some(i)
+    }
+
+    // Place this initial state into an empty database
+    common::empty_database();
+    common::add_contents_to_database("room1", &initial);
+
+    // set up the config options for the first and second runs
+    let db_url = DB_URL.to_string();
+    let output_file1 = "./tests/tmp/run_is_idempotent_when_run_on_whole_room_1.sql".to_string();
+    let output_file2 = "./tests/tmp/run_is_idempotent_when_run_on_whole_room_2.sql".to_string();
+    let room_id = "room1".to_string();
+    let min_state_group = "".to_string();
+    let min_saved_rows = "".to_string();
+    let groups_to_compress = "".to_string();
+    let level_sizes = "3,3".to_string();
+    let transactions = true;
+    let graphs = false;
+    let commit_changes = true;
+
+    let config1 = Config::new(
+        db_url.clone(),
+        output_file1,
+        room_id.clone(),
+        min_state_group.clone(),
+        groups_to_compress.clone(),
+        min_saved_rows.clone(),
+        level_sizes.clone(),
+        transactions,
+        graphs,
+        commit_changes,
+    );
+    
+    let config2 = Config::new(
+        db_url,
+        output_file2,
+        room_id,
+        min_state_group,
+        groups_to_compress,
+        min_saved_rows,
+        level_sizes,
+        transactions,
+        graphs,
+        commit_changes,
+    );
+
+    
+    // We are aiming for the following structure in the database
+    // i.e. groups 6 and 9 should have changed from initial map
+    // N.B. this saves 11 rows
+    //
+    // 0  3\      12
+    // 1  4 6\    13
+    // 2  5 7 9
+    //      8 10
+    //        11
+    let expected_edges: BTreeMap<i64, i64> = vec![
+        (1, 0),
+        (2, 1),
+        (4, 3),
+        (5, 4),
+        (6, 3),
+        (7, 6),
+        (8, 7),
+        (9, 6),
+        (10, 9),
+        (11, 10),
+        (13, 12),
+    ]
+    .into_iter()
+    .collect();
+
+    let mut expected: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+
+    // Each group i has state:
+    //     ('node','is',      i)
+    //     ('group',  j, 'seen') - for all j less than i
+    for i in 0i64..=13i64 {
+        let prev = expected_edges.get(&i);
+
+        //change from Option<&i64> to Option<i64>
+        let prev = match prev {
+            Some(p) => Some(*p),
+            None => None,
+        };
+
+        // create a blank entry for it
+        let mut entry = StateGroupEntry {
+            in_range: true,
+            prev_state_group: prev,
+            state_map: StateMap::new(),
+        };
+
+        // Add in all state between predecessor and now (non inclusive)
+        if let Some(p) = prev {
+            for j in (p + 1)..i {
+                entry
+                    .state_map
+                    .insert("group", &j.to_string(), "seen".into());
+            }
+        } else {
+            for j in 0i64..i {
+                entry
+                    .state_map
+                    .insert("group", &j.to_string(), "seen".into());
+            }
+        }
+
+        // add in the new state for this state group
+        entry
+            .state_map
+            .insert("group", &i.to_string(), "seen".into());
+        entry.state_map.insert("node", "is", i.to_string().into());
+
+        // put it into the expected map
+        expected.insert(i, entry);
+    }
+
+    // Run the compressor with those settings for the first time
+    run(config1);
+
+    // Check that the database still gives correct states for each group!
+    assert!(database_collapsed_states_match_map(&initial));
+
+    // Check that the structure of the database matches the expected structure
+    assert!(database_structure_matches_map(&expected));
+
+
+    // Run the compressor with those settings for the second time
+    run(config2);
+
+    // Check that the database still gives correct states for each group!
+    assert!(database_collapsed_states_match_map(&initial));
+
+    // Check that the structure of the database still matches the expected structure
+    assert!(database_structure_matches_map(&expected));
+}
