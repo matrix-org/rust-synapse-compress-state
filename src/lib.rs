@@ -1032,3 +1032,93 @@ mod lib_tests {
 
     //TODO: tests for correct SQL code produced by output_sql
 }
+
+#[cfg(test)]
+mod pyo3_tests {
+    use crate::{Config, LevelSizes};
+
+    #[test]
+    fn new_config_correct_when_things_empty() {
+        let db_url = "postresql://homeserver.com/synapse".to_string();
+        let room_id = "!roomid@homeserver.com".to_string();
+        let output_file = None;
+        let min_state_group = None;
+        let groups_to_compress = None;
+        let min_saved_rows = None;
+        let max_state_group = None;
+        let level_sizes = "100,50,25".to_string();
+        let transactions = false;
+        let graphs = false;
+
+        let config = Config::new(
+            db_url.clone(),
+            room_id.clone(),
+            output_file,
+            min_state_group,
+            groups_to_compress,
+            min_saved_rows,
+            max_state_group,
+            level_sizes,
+            transactions,
+            graphs,
+        )
+        .unwrap();
+
+        assert_eq!(config.db_url, db_url);
+        assert!(config.output_file.is_none());
+        assert_eq!(config.room_id, room_id);
+        assert!(config.min_state_group.is_none());
+        assert!(config.groups_to_compress.is_none());
+        assert!(config.min_saved_rows.is_none());
+        assert!(config.max_state_group.is_none());
+        assert_eq!(
+            config.level_sizes,
+            "100,50,25".parse::<LevelSizes>().unwrap()
+        );
+        assert_eq!(config.transactions, transactions);
+        assert_eq!(config.graphs, graphs);
+    }
+
+    #[test]
+    fn new_config_correct_when_things_not_empty() {
+        // db_url and room_id have to be set or it will panic
+        let db_url = "postresql://homeserver.com/synapse".to_string();
+        let room_id = "room_id".to_string();
+        let output_file = Some("/tmp/myFile".to_string());
+        let min_state_group = Some(3225);
+        let groups_to_compress = Some(970);
+        let min_saved_rows = Some(500);
+        let max_state_group = Some(3453);
+        let level_sizes = "128,64,32".to_string();
+        let transactions = true;
+        let graphs = true;
+
+        let config = Config::new(
+            db_url.clone(),
+            room_id.clone(),
+            output_file,
+            min_state_group,
+            groups_to_compress,
+            min_saved_rows,
+            max_state_group,
+            level_sizes,
+            transactions,
+            graphs,
+        )
+        .unwrap();
+
+        assert_eq!(config.db_url, db_url);
+        assert!(!config.output_file.is_none());
+        assert_eq!(config.room_id, room_id);
+        assert_eq!(config.min_state_group, Some(3225));
+        assert_eq!(config.groups_to_compress, Some(970));
+        assert_eq!(config.min_saved_rows, Some(500));
+        assert_eq!(config.max_state_group, Some(3453));
+        assert_eq!(
+            config.level_sizes,
+            "128,64,32".parse::<LevelSizes>().unwrap()
+        );
+        assert_eq!(config.transactions, transactions);
+        assert_eq!(config.graphs, graphs);
+    }
+}
