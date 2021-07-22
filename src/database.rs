@@ -101,9 +101,7 @@ pub fn get_data_from_db(
         // find state groups not picked up already and add them to the map
         let map = get_missing_from_db(&mut client, &missing_sgs, min_state_group, max_group_found);
         for (k, v) in map.into_iter() {
-            if !state_group_map.contains_key(&k) {
-                state_group_map.insert(k, v);
-            }
+            state_group_map.entry(k).or_insert(v);
         }
     }
 
@@ -267,9 +265,9 @@ fn get_missing_from_db(
         // Save the predecessor and mark for compression (this may already be there)
         // Also may well not exist!
         entry.prev_state_group = row.get(1);
-        if !min_state_group.is_none() {
-            if min_state_group.unwrap() < id && id <= max_group_found {
-                entry.in_range = true;
+        if let Some(min) = min_state_group {
+            if min < id && id > max_group_found {
+                entry.in_range = true
             }
         }
 
