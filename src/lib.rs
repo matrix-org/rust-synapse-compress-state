@@ -74,7 +74,7 @@ impl FromStr for LevelSizes {
 /// Contains configuration information for this run of the compressor
 pub struct Config {
     // the url for the postgres database
-    // this should be of the form postgres://user:pass@domain/database
+    // this should be of the form postgresql://user:pass@domain/database
     db_url: String,
     // The file where the transactions are written that would carry out
     // the compression that get's calculated
