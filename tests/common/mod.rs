@@ -1,9 +1,10 @@
 use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 use postgres::Client;
 use postgres_openssl::MakeTlsConnector;
-use std::collections::BTreeMap;
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use std::{borrow::Cow, collections::BTreeMap, fmt};
 
-use synapse_compress_state::{PGEscape, StateGroupEntry};
+use synapse_compress_state::StateGroupEntry;
 
 static DB_URL: &str = "postgresql://synapse_user:synapse_pass@localhost/synapse";
 
@@ -14,7 +15,7 @@ pub fn add_contents_to_database(room_id: &str, state_group_map: &BTreeMap<i64, S
     let connector = MakeTlsConnector::new(builder.build());
 
     let mut client = Client::connect(DB_URL, connector).unwrap();
-    
+
     // build up the query
     let mut sql = "".to_string();
 
