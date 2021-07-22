@@ -9,7 +9,7 @@ use string_cache::DefaultAtom as Atom;
 
 use synapse_compress_state::StateGroupEntry;
 
-static DB_URL: &str = "postgresql://synapse_user:synapse_pass@localhost/synapse";
+pub static DB_URL: &str = "postgresql://synapse_user:synapse_pass@localhost/synapse";
 
 pub fn add_contents_to_database(room_id: &str, state_group_map: &BTreeMap<i64, StateGroupEntry>) {
     // connect to the database
