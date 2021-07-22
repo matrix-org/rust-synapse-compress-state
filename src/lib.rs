@@ -120,7 +120,10 @@ impl Config {
             Arg::with_name("postgres-url")
                 .short("p")
                 .value_name("URL")
-                .help("The url for connecting to the postgres database")
+                .help("The url for connecting to the postgres database.")
+                .long_help(concat!(
+                    "The url for connecting to the postgres database.This should be of",
+                    " the form \"postgresql://username:password@mydomain.com/database\""))
                 .takes_value(true)
                 .required(true),
         ).arg(
@@ -142,13 +145,17 @@ impl Config {
                 .short("m")
                 .value_name("COUNT")
                 .help("Abort if fewer than COUNT rows would be saved")
+                .long_help("If the compressor cannot save this many rows from the database then it will stop early")
                 .takes_value(true)
                 .required(false),
         ).arg(
             Arg::with_name("groups_to_compress")
                 .short("n")
                 .value_name("GROUPS_TO_COMPRESS")
-                .help("How many groups to load into memory to compress")
+                .help("How many groups to load into memory to compress") 
+                .long_help(concat!(
+                    "How many groups to load into memory to compress (starting from",
+                    " the 1st group in the room or the group specified by -s)"))
                 .takes_value(true)
                 .required(false),
         ).arg(
@@ -188,11 +195,17 @@ impl Config {
             Arg::with_name("transactions")
                 .short("t")
                 .help("Whether to wrap each state group change in a transaction")
+                .long_help(concat!("If this flag is set then then each change to a particular",
+                    " state group is wrapped in a transaction. This should be done if you wish to",
+                    " apply the changes while synapse is still running."))
                 .requires("output_file"),
         ).arg(
             Arg::with_name("graphs")
                 .short("g")
-                .help("Whether to produce graphs of state groups before and after compression instead of SQL")
+                .help("Output before and after graphs")
+                .long_help(concat!("If this flag is set then output the node and edge information for",
+                    " the state_group directed graph built up from the predecessor state_group links.",
+                    " These can be looked at in something like Gephi (https://gephi.org)"))
         ).get_matches();
 
         let db_url = matches
