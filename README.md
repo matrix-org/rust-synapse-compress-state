@@ -106,6 +106,11 @@ If this flag is set then output the node and edge information for the state_grou
 directed graph built up from the predecessor state_group links. These can be looked
 at in something like Gephi (https://gephi.org)
 
+- -c  
+If this flag is set then the changes the compressor makes will be committed to the
+database. This should be safe to use while synapse is running as it assumes by default
+that the transactions flag is set
+
 ## Using as python library
 
 The compressor can also be built into a python library as it uses PyO3. It can be
