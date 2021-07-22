@@ -313,6 +313,11 @@ pub fn run(mut config: Config) {
         compressor.stats.state_groups_changed
     );
 
+    if ratio > 1.0 {
+        println!("This compression would not remove any rows. Aborting.");
+        return;
+    }
+
     if let Some(min) = config.min_saved_rows {
         let saving = (original_summed_size - compressed_summed_size) as i32;
         if saving < min {
