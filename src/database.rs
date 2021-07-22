@@ -121,7 +121,6 @@ pub fn get_data_from_db(
 /// * `room_id`             -   The ID of the room in the database
 /// * `min_state_group`     -   The lower limit (non inclusive) of group id's to compress
 /// * 'groups_to_compress'  -   How many groups to compress
-
 fn find_max_group(
     client: &mut Client,
     room_id: &str,
