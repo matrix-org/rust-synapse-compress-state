@@ -16,6 +16,9 @@
 //! Synapse instance's database. Specifically, it aims to reduce the number of
 //! rows that a given room takes up in the `state_groups_state` table.
 
+// This file contains configuring config options, which neccessarily means lots
+// of arguments - this hopefully doesn't make the code unclear
+#![allow(clippy::too_many_arguments)]
 use pyo3::{exceptions, prelude::*};
 
 #[cfg(feature = "jemalloc")]
