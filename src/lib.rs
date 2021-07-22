@@ -293,7 +293,7 @@ fn output_sql(
     new_map: &BTreeMap<i64, StateGroupEntry>
 ) 
 {
-    if let None = config.output_file {
+    if config.output_file.is_none() {
         return;
     }
 
