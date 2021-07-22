@@ -45,9 +45,9 @@ use database::PGEscape;
 /// delta from that previous group (or the full state if no previous group)
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct StateGroupEntry {
-    in_range: bool,
-    prev_state_group: Option<i64>,
-    state_map: StateMap<Atom>,
+    pub in_range: bool,
+    pub prev_state_group: Option<i64>,
+    pub state_map: StateMap<Atom>,
 }
 
 /// Helper struct for parsing the `level_sizes` argument.
