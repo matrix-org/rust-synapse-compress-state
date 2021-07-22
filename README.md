@@ -77,3 +77,12 @@ comp.run_compression(\
   transactions=True\
 )
 ```
+
+Note: since this library uses Jemalloc, you might get an error of the form:
+```
+ImportError: /[LONG_PATH]/synapse_compress_state.abi3.so: cannot allocate memory in static TLS block
+```
+If this happens then try running the following:
+```
+LD_PATH=/[LONG_PATH]/synapse_compress_state.abi3.so ./my_python_script
+```
