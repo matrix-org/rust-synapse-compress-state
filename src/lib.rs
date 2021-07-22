@@ -81,16 +81,18 @@ pub struct Config {
     room_id: String,
     // The group to start compressing from
     // N.B. THIS STATE ITSELF IS NOT COMPRESSED!!!
-    // Note there is no state 0 so if want to start
+    // Note there is no state 0 so if want to compress all then can enter 0
+    // (this is the same as leaving it blank)
     min_state_group: Option<i64>,
     // How many groups to do the compression on
     // Note: State groups within the range specified will get compressed
     // if they are in the state_groups table. States that only appear in
     // the edges table MIGHT NOT get compressed - it is assumed that these
     // groups have no associated state. (Note that this was also an assumption
-    // in previous versions of the state compressor)
+    // in previous versions of the state compressor, and would only be a problem
+    // if the database was in a bad way already...)
     groups_to_compress: Option<i64>,
-    // If the compressor results in less than this many rows being saved then 
+    // If the compressor results in less than this many rows being saved then
     // it will abort
     min_saved_rows: Option<i32>,
     // The sizes of the different levels in the new state_group tree being built
