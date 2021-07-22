@@ -23,7 +23,7 @@
 //!
 //! This produces graphs that look roughly like, for two levels:
 //!
-//! ```
+//! ``` ignored
 //! L2 <-------------------- L2 <---------- ...
 //!  ^--- L1 <--- L1 <--- L1  ^--- L1 <--- L1 <--- L1
 //! ```
