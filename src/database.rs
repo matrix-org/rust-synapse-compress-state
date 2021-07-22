@@ -143,8 +143,10 @@ fn get_initial_data_from_db(
         // The row in the map to copy the data to
         let entry = state_group_map.entry(row.get(0)).or_default();
 
-        // Save the predecessor (this may already be there)
+        // Save the predecessor and mark for compression (this may already be there)
+        // TODO: slightly fewer redundant rewrites
         entry.prev_state_group = row.get(1);
+        entry.in_range = true;
 
         // Copy the single delta from the predecessor stored in this row
         if let Some(etype) = row.get::<_, Option<String>>(2) {
