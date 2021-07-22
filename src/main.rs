@@ -19,6 +19,5 @@
 use synapse_compress_state as comp_state;
 
 fn main() {
-    comp_state::run(
-        comp_state::Config::parse_arguments());
+    comp_state::run(comp_state::Config::parse_arguments());
 }
