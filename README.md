@@ -19,7 +19,7 @@ transaction should not affect the results from any of the queries that synapse
 performs.
 
 The tool will also ensure that the generated state deltas do give the same state
-as the existing state deltas.
+as the existing state deltas before generating any SQL.
 
 ## Algorithm
 
@@ -35,7 +35,8 @@ L2 <-------------------- L2 <---------- ...
 ^--- L1 <--- L1 <--- L1  ^--- L1 <--- L1 <--- L1
 ```
 
-The sizes and number of levels used can be controlled via `-l`.
+The sizes and number of levels used can be controlled via `-l`, and defaults to 3
+levels of sizes 100, 50 and 25.
 
 **Note**: Increasing the sum of the sizes of levels will increase the time it
 takes for to query the full state of a given state group. By default Synapse
@@ -61,10 +62,58 @@ New state map matches old one
 $ psql synapse < out.data
 ```
 
+## Running Options
+
+- -p [URL] **Required**  
+The url for connecting to the postgres database. This should be of the form
+"postgresql://username:password@mydomain.com/database"
+
+- -r [ROOM_ID] **Required**  
+The room to process (this is the value found in the `rooms` table of the database
+not the common name for the room - is should look like: "!wOlkWNmgkAZFxbTaqj:matrix.org"
+
+- -b [MIN_STATE_GROUP]  
+The state group to start processing from (non inclusive)
+
+- -n [GROUPS_TO_COMPRESS]  
+How many groups to load into memory to compress (starting
+from the 1st group in the room or the group specified by -s)
+
+- -l [LEVELS]  
+Sizes of each new level in the compression algorithm, as a comma separated list.
+The first entry in the list is for the lowest, most granular level, with each 
+subsequent entry being for the next highest level. The number of entries in the
+list determines the number of levels that will be used. The sum of the sizes of
+the levels effect the performance of fetching the state from the database, as the
+sum of the sizes is the upper bound on number of iterations needed to fetch a
+ given set of state. [default's to 100,50,25]
+
+- -m [COUNT]  
+If the compressor cannot save this many rows from the database then it will stop early
+
+- -s [MAX_STATE_GROUP]  
+If a max_state_group is specified then only state groups with id's lower than this number are able to be
+compressed.
+
+- -o [FILE]  
+File to output the SQL transactions to (for later running on the database)
+
+- -t  
+If this flag is set then then each change to a particular state group is wrapped in a transaction. This should be done if you wish to apply the changes while synapse is still running.
+
+- -g  
+If this flag is set then output the node and edge information for the state_group
+directed graph built up from the predecessor state_group links. These can be looked
+at in something like Gephi (https://gephi.org)
+
 ## Using as python library
 
 The compressor can also be built into a python library as it uses PyO3. It can be
 built and installed into the current virtual environment by running `maturin develop`
+
+All the same running options are available, see the comments in the Config struct
+in lib.rs for the names of each argument. All arguments other than `db_url` and `room_id`
+are optional.
 
 The following code does exactly the same as the command-line example from above:
 ```
@@ -89,4 +138,18 @@ LD_PATH=/[LONG_PATH]/synapse_compress_state.abi3.so ./my_python_script
 Or just try disabling jemalloc:
 ```
 $ maturin develop --cargo-extra-args="--no-default-features"
+```
+
+## Running tests
+There are integration tests for these tool stored in `compressor_integration_tests/`
+
+To run the integration tests, you first need to start up a postgres database
+for the libary to talk to. There is a docker-compose file that sets one up
+with all of the correct tables. The tests can therefore be run as follows:
+
+```
+$ cd compressor_integration_tests/
+$ docker-compose up -d
+$ cargo test --all
+$ docker-compose down
 ```
