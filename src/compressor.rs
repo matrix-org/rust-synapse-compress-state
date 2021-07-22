@@ -340,6 +340,7 @@ mod compressor_tests {
     };
     use state_map::StateMap;
     use std::collections::BTreeMap;
+    use string_cache::DefaultAtom as Atom;
 
     #[test]
     fn compress_creates_correct_compressor() {
@@ -767,5 +768,266 @@ mod compressor_tests {
                 sg,
             );
         }
+    }
+
+    #[test]
+    fn get_delta_returns_snapshot_if_no_prev_given() {
+        let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None;
+
+        // This starts with the following structure
+        //
+        // 0-1-2-3-4-5-6-7-8-9-10-11-12-13
+        //
+        // Each group i has state:
+        //     ('node','is',      i)
+        //     ('group',  j, 'seen') - for all j less than i
+        for i in 0i64..=13i64 {
+            let mut entry = StateGroupEntry {
+                in_range: true,
+                prev_state_group: prev,
+                state_map: StateMap::new(),
+            };
+            entry
+                .state_map
+                .insert("group", &i.to_string(), "seen".into());
+            entry.state_map.insert("node", "is", i.to_string().into());
+
+            initial.insert(i, entry);
+
+            prev = Some(i)
+        }
+
+        // This should produce the following structure (tested above)
+        //
+        // 0  3\      12
+        // 1  4 6\    13
+        // 2  5 7 9
+        //      8 10
+        //        11
+        //
+        // State contents should be the same as before
+        let mut compressor = Compressor::compress(&initial, &[3, 3]);
+
+        let (found_delta, found_pred) = compressor.get_delta(None, 6);
+
+        let mut expected_delta: StateMap<Atom> = StateMap::new();
+        expected_delta.insert("node", "is", "6".into());
+        expected_delta.insert("group", "0", "seen".into());
+        expected_delta.insert("group", "1", "seen".into());
+        expected_delta.insert("group", "2", "seen".into());
+        expected_delta.insert("group", "3", "seen".into());
+        expected_delta.insert("group", "4", "seen".into());
+        expected_delta.insert("group", "5", "seen".into());
+        expected_delta.insert("group", "6", "seen".into());
+
+        assert_eq!(found_delta, expected_delta);
+        assert_eq!(found_pred, None);
+    }
+
+    #[test]
+    fn get_delta_returns_delta_if_original_predecessor() {
+        let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None;
+
+        // This starts with the following structure
+        //
+        // 0-1-2-3-4-5-6-7-8-9-10-11-12-13
+        //
+        // Each group i has state:
+        //     ('node','is',      i)
+        //     ('group',  j, 'seen') - for all j less than i
+        for i in 0i64..=13i64 {
+            let mut entry = StateGroupEntry {
+                in_range: true,
+                prev_state_group: prev,
+                state_map: StateMap::new(),
+            };
+            entry
+                .state_map
+                .insert("group", &i.to_string(), "seen".into());
+            entry.state_map.insert("node", "is", i.to_string().into());
+
+            initial.insert(i, entry);
+
+            prev = Some(i)
+        }
+
+        // This should produce the following structure (tested above)
+        //
+        // 0  3\      12
+        // 1  4 6\    13
+        // 2  5 7 9
+        //      8 10
+        //        11
+        //
+        // State contents should be the same as before
+        let mut compressor = Compressor::compress(&initial, &[3, 3]);
+
+        let (found_delta, found_pred) = compressor.get_delta(Some(5), 6);
+
+        let mut expected_delta: StateMap<Atom> = StateMap::new();
+        expected_delta.insert("node", "is", "6".into());
+        expected_delta.insert("group", "6", "seen".into());
+
+        assert_eq!(found_delta, expected_delta);
+        assert_eq!(found_pred, Some(5));
+    }
+
+    #[test]
+    fn get_delta_returns_delta_if_original_multi_hop_predecessor() {
+        let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None;
+
+        // This starts with the following structure
+        //
+        // 0-1-2-3-4-5-6-7-8-9-10-11-12-13
+        //
+        // Each group i has state:
+        //     ('node','is',      i)
+        //     ('group',  j, 'seen') - for all j less than i
+        for i in 0i64..=13i64 {
+            let mut entry = StateGroupEntry {
+                in_range: true,
+                prev_state_group: prev,
+                state_map: StateMap::new(),
+            };
+            entry
+                .state_map
+                .insert("group", &i.to_string(), "seen".into());
+            entry.state_map.insert("node", "is", i.to_string().into());
+
+            initial.insert(i, entry);
+
+            prev = Some(i)
+        }
+
+        // This should produce the following structure (tested above)
+        //
+        // 0  3\      12
+        // 1  4 6\    13
+        // 2  5 7 9
+        //      8 10
+        //        11
+        //
+        // State contents should be the same as before
+        let mut compressor = Compressor::compress(&initial, &[3, 3]);
+
+        let (found_delta, found_pred) = compressor.get_delta(Some(3), 6);
+
+        let mut expected_delta: StateMap<Atom> = StateMap::new();
+        expected_delta.insert("node", "is", "6".into());
+        expected_delta.insert("group", "4", "seen".into());
+        expected_delta.insert("group", "5", "seen".into());
+        expected_delta.insert("group", "6", "seen".into());
+
+        assert_eq!(found_delta, expected_delta);
+        assert_eq!(found_pred, Some(3));
+    }
+
+    #[test]
+    fn get_delta_returns_snapshot_if_no_prev_possible() {
+        let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None;
+
+        // This starts with the following structure
+        //
+        // (note missing 3-4 link)
+        // 0-1-2-3
+        // 4-5-6-7-8-9-10-11-12-13
+        //
+        // Each group i has state:
+        //     ('node','is',      i)
+        //     ('group',  j, 'seen') where j is ancestor of i
+        for i in 0i64..=13i64 {
+            // don't add 3-4 link
+            if i == 4 {
+                prev = None
+            }
+
+            // populate the delta for this state
+            let mut entry = StateGroupEntry {
+                in_range: true,
+                prev_state_group: prev,
+                state_map: StateMap::new(),
+            };
+            entry
+                .state_map
+                .insert("group", &i.to_string(), "seen".into());
+            entry.state_map.insert("node", "is", i.to_string().into());
+
+            // put the entry into the initial map
+            initial.insert(i, entry);
+
+            prev = Some(i)
+        }
+
+        // This should create the following structure if create_new_tree() was run
+        // (tested in create_new_tree_deals_with_impossible_preds())
+        //
+        // Brackets mean that has NO predecessor but is in that position in the
+        // levels tree
+        //
+        // 0  3\        12
+        // 1 (4)(6)\    13
+        // 2  5  7  9
+        //       8  10
+        //          11
+        //
+        // State contents should be the same as before
+
+        // build up new_tree after 0,1,2,3 added
+        let mut new_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+
+        // 0-1-2 is left the same
+        new_map.insert(0, initial.get(&0).unwrap().clone());
+        new_map.insert(1, initial.get(&1).unwrap().clone());
+        new_map.insert(2, initial.get(&2).unwrap().clone());
+
+        // 3 is now a snapshot
+        let mut entry_3: StateMap<Atom> = StateMap::new();
+        entry_3.insert("node", "is", "3".into());
+        entry_3.insert("group", "0", "seen".into());
+        entry_3.insert("group", "1", "seen".into());
+        entry_3.insert("group", "2", "seen".into());
+        entry_3.insert("group", "3", "seen".into());
+        new_map.insert(
+            3,
+            StateGroupEntry {
+                in_range: true,
+                prev_state_group: None,
+                state_map: entry_3,
+            },
+        );
+
+        // build the compressor with this partialy built new map
+        let mut compressor = Compressor {
+            original_state_map: &initial,
+            new_state_group_map: new_map,
+            levels: vec![Level::new(3), Level::new(3)],
+            stats: Stats::default(),
+        };
+
+        // make the levels how they would be after 0,1,2,3 added
+        // they should both be of length 1 and have 3 as the current head
+        let mut levels_iter = compressor.levels.iter_mut();
+
+        let l1 = levels_iter.next().unwrap();
+        l1.current = Some(3);
+        l1.current_chain_length = 1;
+
+        let l2 = levels_iter.next().unwrap();
+        l2.current = Some(3);
+        l2.current_chain_length = 1;
+
+        // Now try and find delta for 4 with 3 as pred
+        let (found_delta, found_pred) = compressor.get_delta(Some(3), 4);
+
+        let mut expected_delta: StateMap<Atom> = StateMap::new();
+        expected_delta.insert("node", "is", "4".into());
+        expected_delta.insert("group", "4", "seen".into());
+
+        assert_eq!(found_delta, expected_delta);
+        assert_eq!(found_pred, None);
     }
 }
