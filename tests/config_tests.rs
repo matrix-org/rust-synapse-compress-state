@@ -41,7 +41,7 @@ fn run_succeeds_without_crashing() {
     common::add_contents_to_database("room1", &initial);
 
     let db_url = DB_URL.to_string();
-    let output_file = "./tests/tmp/output.sql".to_string();
+    let output_file = "./tests/tmp/run_succeeds_without_crashing.sql".to_string();
     let room_id = "room1".to_string();
     let min_state_group = "".to_string();
     let min_saved_rows = "".to_string();
