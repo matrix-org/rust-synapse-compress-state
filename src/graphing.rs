@@ -57,7 +57,7 @@ fn output_csv(groups: &Graph, edges_output: &mut File, nodes_output: &mut File) 
 /// * `after`       - A map from state group ids to StateGroupEntries
 ///                   the information from this map goes into after_edges.csv
 ///                   and after_nodes.csv
-pub fn make_graphs(before: Graph, after: Graph) {
+pub fn make_graphs(before: &Graph, after: &Graph) {
     // Open all the files to output to
     let mut before_edges_file = File::create("before_edges.csv").unwrap();
     let mut before_nodes_file = File::create("before_nodes.csv").unwrap();
