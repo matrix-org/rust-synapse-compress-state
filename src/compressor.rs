@@ -332,50 +332,440 @@ mod level_tests {
     }
 }
 
-#[test]
-fn test_new_map() {
-    let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+#[cfg(test)]
+mod compressor_tests {
+    use crate::{
+        compressor::{Compressor, Level, Stats},
+        StateGroupEntry,
+    };
+    use state_map::StateMap;
+    use std::collections::BTreeMap;
 
-    let mut prev = None;
-    for i in 0i64..=13i64 {
-        initial.insert(
-            i,
-            StateGroupEntry {
+    #[test]
+    fn compress_creates_correct_compressor() {
+        let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None;
+
+        // This starts with the following structure
+        //
+        // 0-1-2-3-4-5-6-7-8-9-10-11-12-13
+        for i in 0i64..=13i64 {
+            initial.insert(
+                i,
+                StateGroupEntry {
+                    in_range: true,
+                    prev_state_group: prev,
+                    state_map: StateMap::new(),
+                },
+            );
+
+            prev = Some(i)
+        }
+
+        let compressor = Compressor::compress(&initial, &[3, 3]);
+
+        let new_state = &compressor.new_state_group_map;
+
+        // This should create the following structure
+        //
+        // 0  3\      12
+        // 1  4 6\    13
+        // 2  5 7 9
+        //      8 10
+        //        11
+        let expected_edges: BTreeMap<i64, i64> = vec![
+            (1, 0),
+            (2, 1),
+            (4, 3),
+            (5, 4),
+            (6, 3),
+            (7, 6),
+            (8, 7),
+            (9, 6),
+            (10, 9),
+            (11, 10),
+            (13, 12),
+        ]
+        .into_iter()
+        .collect();
+
+        for sg in 0i64..=13i64 {
+            assert_eq!(
+                expected_edges.get(&sg).cloned(),
+                new_state[&sg].prev_state_group,
+                "state group {} did not match expected",
+                sg,
+            );
+        }
+    }
+
+    #[test]
+    fn create_new_tree_does_nothing_if_already_compressed() {
+        // This should create the following structure
+        //
+        // 0  3\      12
+        // 1  4 6\    13
+        // 2  5 7 9
+        //      8 10
+        //        11
+        let initial_edges: BTreeMap<i64, i64> = vec![
+            (1, 0),
+            (2, 1),
+            (4, 3),
+            (5, 4),
+            (6, 3),
+            (7, 6),
+            (8, 7),
+            (9, 6),
+            (10, 9),
+            (11, 10),
+            (13, 12),
+        ]
+        .into_iter()
+        .collect();
+
+        let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+
+        for i in 0i64..=13i64 {
+            // edge from map
+            let pred_group = initial_edges.get(&i);
+
+            // Need Option<i64> not Option<&i64>
+            let prev;
+            match pred_group {
+                Some(i) => prev = Some(*i),
+                None => prev = None,
+            }
+
+            // insert that edge into the initial map
+            initial.insert(
+                i,
+                StateGroupEntry {
+                    in_range: true,
+                    prev_state_group: prev,
+                    state_map: StateMap::new(),
+                },
+            );
+        }
+
+        let mut compressor = Compressor {
+            original_state_map: &initial,
+            new_state_group_map: BTreeMap::new(),
+            levels: vec![Level::new(3), Level::new(3)],
+            stats: Stats::default(),
+        };
+
+        compressor.create_new_tree();
+
+        let new_state = &compressor.new_state_group_map;
+
+        assert_eq!(initial, *new_state);
+    }
+
+    #[test]
+    fn create_new_tree_respects_levels() {
+        let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None;
+
+        // This starts with the following structure
+        //
+        // 0-1-2-3-4-5-6-7-8-9-10-11-12-13
+        for i in 0i64..=13i64 {
+            initial.insert(
+                i,
+                StateGroupEntry {
+                    in_range: true,
+                    prev_state_group: prev,
+                    state_map: StateMap::new(),
+                },
+            );
+
+            prev = Some(i)
+        }
+
+        let mut compressor = Compressor {
+            original_state_map: &initial,
+            new_state_group_map: BTreeMap::new(),
+            levels: vec![Level::new(3), Level::new(3)],
+            stats: Stats::default(),
+        };
+        compressor.create_new_tree();
+
+        let new_state = &compressor.new_state_group_map;
+
+        // This should create the following structure
+        //
+        // 0  3\      12
+        // 1  4 6\    13
+        // 2  5 7 9
+        //      8 10
+        //        11
+        let expected_edges: BTreeMap<i64, i64> = vec![
+            (1, 0),
+            (2, 1),
+            (4, 3),
+            (5, 4),
+            (6, 3),
+            (7, 6),
+            (8, 7),
+            (9, 6),
+            (10, 9),
+            (11, 10),
+            (13, 12),
+        ]
+        .into_iter()
+        .collect();
+
+        for sg in 0i64..=13i64 {
+            assert_eq!(
+                expected_edges.get(&sg).cloned(),
+                new_state[&sg].prev_state_group,
+                "state group {} did not match expected",
+                sg,
+            );
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn create_new_tree_panics_if_run_twice() {
+        let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None;
+
+        for i in 0i64..=13i64 {
+            initial.insert(
+                i,
+                StateGroupEntry {
+                    in_range: true,
+                    prev_state_group: prev,
+                    state_map: StateMap::new(),
+                },
+            );
+
+            prev = Some(i)
+        }
+
+        let mut compressor = Compressor {
+            original_state_map: &initial,
+            new_state_group_map: BTreeMap::new(),
+            levels: vec![Level::new(3), Level::new(3)],
+            stats: Stats::default(),
+        };
+        compressor.create_new_tree();
+        compressor.create_new_tree();
+    }
+
+    #[test]
+    fn create_new_tree_respects_all_not_in_range() {
+        let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None;
+
+        // This starts with the following structure
+        //
+        // 0-1-2-3-4-5-6-7-8-9-10-11-12-13
+        for i in 0i64..=13i64 {
+            initial.insert(
+                i,
+                StateGroupEntry {
+                    in_range: false,
+                    prev_state_group: prev,
+                    state_map: StateMap::new(),
+                },
+            );
+
+            prev = Some(i)
+        }
+
+        let mut compressor = Compressor {
+            original_state_map: &initial,
+            new_state_group_map: BTreeMap::new(),
+            levels: vec![Level::new(3), Level::new(3)],
+            stats: Stats::default(),
+        };
+        compressor.create_new_tree();
+
+        let new_state = &compressor.new_state_group_map;
+
+        // This should create the following structure
+        //
+        // 0-1-2-3-4-5-6-7-8-9-10-11-12-13 (i.e. no change!)
+        let expected_edges: BTreeMap<i64, i64> = vec![
+            (1, 0),
+            (2, 1),
+            (3, 2),
+            (4, 3),
+            (5, 4),
+            (6, 5),
+            (7, 6),
+            (8, 7),
+            (9, 8),
+            (10, 9),
+            (11, 10),
+            (12, 11),
+            (13, 12),
+        ]
+        .into_iter()
+        .collect();
+
+        for sg in 0i64..=13i64 {
+            assert_eq!(
+                expected_edges.get(&sg).cloned(),
+                new_state[&sg].prev_state_group,
+                "state group {} did not match expected",
+                sg,
+            );
+        }
+    }
+
+    #[test]
+    fn create_new_tree_respects_some_not_in_range() {
+        let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None;
+
+        // This starts with the following structure
+        //
+        // 0-1-2-3-4-5-6-7-8-9-10-11-12-13-14-15-16-17-18
+        for i in 0i64..=18i64 {
+            initial.insert(
+                i,
+                StateGroupEntry {
+                    in_range: i > 4,
+                    prev_state_group: prev,
+                    state_map: StateMap::new(),
+                },
+            );
+
+            prev = Some(i)
+        }
+
+        let mut compressor = Compressor {
+            original_state_map: &initial,
+            new_state_group_map: BTreeMap::new(),
+            levels: vec![Level::new(3), Level::new(3)],
+            stats: Stats::default(),
+        };
+        compressor.create_new_tree();
+
+        let new_state = &compressor.new_state_group_map;
+
+        // This should create the following structure
+        //
+        // 0  5   8\       17
+        // 1  6   9 11\    18
+        // 2  7  10 12 14
+        // 3        13 15
+        // 4           16
+        let expected_edges: BTreeMap<i64, i64> = vec![
+            (1, 0),
+            (2, 1),
+            (3, 2),
+            (4, 3), // No compression of nodes 0,1,2,3,4
+            (6, 5), // Compresses in 3,3 leveling starting at 5
+            (7, 6),
+            (9, 8),
+            (10, 9),
+            (11, 8),
+            (12, 11),
+            (13, 12),
+            (14, 11),
+            (15, 14),
+            (16, 15),
+            (18, 17),
+        ]
+        .into_iter()
+        .collect();
+        for n in new_state {
+            println!("{:?}", n);
+        }
+
+        for sg in 0i64..=13i64 {
+            assert_eq!(
+                expected_edges.get(&sg).cloned(),
+                new_state[&sg].prev_state_group,
+                "state group {} did not match expected",
+                sg,
+            );
+        }
+    }
+
+    #[test]
+    fn create_new_tree_deals_with_impossible_preds() {
+        let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None;
+
+        // This starts with the following structure
+        //
+        // (note missing 3-4 link)
+        // 0-1-2-3
+        // 4-5-6-7-8-9-10-11-12-13
+        //
+        // Each group i has state:
+        //     ('node','is',      i)
+        //     ('group',  j, 'seen') where j is ancestor of i
+        for i in 0i64..=13i64 {
+            if i == 4 {
+                prev = None
+            }
+            let mut entry = StateGroupEntry {
                 in_range: true,
                 prev_state_group: prev,
                 state_map: StateMap::new(),
-            },
-        );
+            };
+            entry
+                .state_map
+                .insert("group", &i.to_string(), "seen".into());
+            entry.state_map.insert("node", "is", i.to_string().into());
 
-        prev = Some(i)
-    }
+            initial.insert(i, entry);
 
-    let compressor = Compressor::compress(&initial, &[3, 3]);
+            prev = Some(i)
+        }
 
-    let new_state = compressor.new_state_group_map;
+        let mut compressor = Compressor {
+            original_state_map: &initial,
+            new_state_group_map: BTreeMap::new(),
+            levels: vec![Level::new(3), Level::new(3)],
+            stats: Stats::default(),
+        };
+        compressor.create_new_tree();
 
-    let expected_edges: BTreeMap<i64, i64> = vec![
-        (1, 0),
-        (2, 1),
-        (4, 3),
-        (5, 4),
-        (6, 3),
-        (7, 6),
-        (8, 7),
-        (9, 6),
-        (10, 9),
-        (11, 10),
-        (13, 12),
-    ]
-    .into_iter()
-    .collect();
+        let new_state = &compressor.new_state_group_map;
 
-    for sg in 0i64..=13i64 {
-        assert_eq!(
-            expected_edges.get(&sg).cloned(),
-            new_state[&sg].prev_state_group,
-            "state group {} did not match expected",
-            sg,
-        );
+        for n in new_state {
+            println!("{:?}", n);
+        }
+
+        // This should create the following structure
+        //
+        // Brackets mean that has NO predecessor but is in that position in the
+        // levels tree
+        //
+        // 0  3\        12
+        // 1 (4)(6)\    13
+        // 2  5  7  9
+        //       8  10
+        //          11
+        let expected_edges: BTreeMap<i64, i64> = vec![
+            (1, 0),
+            (2, 1),
+            (5, 4),
+            (7, 6),
+            (8, 7),
+            (9, 6),
+            (10, 9),
+            (11, 10),
+            (13, 12),
+        ]
+        .into_iter()
+        .collect();
+
+        for sg in 0i64..=13i64 {
+            assert_eq!(
+                expected_edges.get(&sg).cloned(),
+                new_state[&sg].prev_state_group,
+                "state group {} did not match expected",
+                sg,
+            );
+        }
     }
 }
