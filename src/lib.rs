@@ -41,6 +41,7 @@ use database::PGEscape;
 /// delta from that previous group (or the full state if no previous group)
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct StateGroupEntry {
+    in_range: bool,
     prev_state_group: Option<i64>,
     state_map: StateMap<Atom>,
 }
@@ -308,6 +309,7 @@ fn output_sql(
         for (sg, old_entry) in old_map {
             let new_entry = &new_map[sg];
 
+            // N.B. also checks if in_range fields agree
             if old_entry != new_entry {
                 if config.transactions {
                     writeln!(output, "BEGIN;").unwrap();
