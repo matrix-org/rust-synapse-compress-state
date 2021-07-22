@@ -36,6 +36,7 @@ fn run_succeeds_without_crashing() {
     let level_sizes = "3,3".to_string();
     let transactions = true;
     let graphs = false;
+    let commit_changes = false;
 
     let config = Config::new(
         db_url.clone(),
@@ -48,6 +49,7 @@ fn run_succeeds_without_crashing() {
         level_sizes,
         transactions,
         graphs,
+        commit_changes,
     )
     .unwrap();
 

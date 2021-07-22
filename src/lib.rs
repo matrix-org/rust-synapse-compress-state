@@ -107,6 +107,9 @@ pub struct Config {
     // Whether or not to output before and after directed graphs (these can be
     // visualised in somthing like Gephi)
     graphs: bool,
+    // Whether or not to commit changes to the database automatically
+    // N.B. currently assumes transactions is true (to be on the safe side)
+    commit_changes: bool,
 }
 
 impl Config {
@@ -209,7 +212,14 @@ impl Config {
                 .help("Output before and after graphs")
                 .long_help(concat!("If this flag is set then output the node and edge information for",
                     " the state_group directed graph built up from the predecessor state_group links.",
-                    " These can be looked at in something like Gephi (https://gephi.org)"))
+                    " These can be looked at in something like Gephi (https://gephi.org)")),
+        ).arg(
+            Arg::with_name("commit_changes")
+                .short("c")
+                .help("Commit changes to the database")
+                .long_help(concat!("If this flag is set then the changes the compressor makes will",
+                    " be committed to the database. This should be safe to use while synapse is running",
+                    " as it assumes by default that the transactions flag is set")),
         ).get_matches();
 
         let db_url = matches
@@ -247,6 +257,8 @@ impl Config {
 
         let graphs = matches.is_present("graphs");
 
+        let commit_changes = matches.is_present("commit_changes");
+
         Config {
             db_url: String::from(db_url),
             output_file,
@@ -258,6 +270,7 @@ impl Config {
             level_sizes,
             transactions,
             graphs,
+            commit_changes,
         }
     }
 }
@@ -352,11 +365,21 @@ pub fn run(mut config: Config) {
 
     check_that_maps_match(&state_group_map, new_state_group_map);
 
+    // TODO: combine output_sql and send_changes_to_db so that only have the one place
+    // where sql is generated! (Have tried but borrow checker wasn't happy with me...)
+    // It shouldn't be too annoying to make any changes to SQL generation in two places
+    // just note that output_sql isn't tested
+
     // If we are given an output file, we output the changes as SQL. If the
     // `transactions` argument is set we wrap each change to a state group in a
     // transaction.
 
     output_sql(&mut config, &state_group_map, new_state_group_map);
+
+    // If commit_changes is set then commit the changes to the database
+    if config.commit_changes {
+        database::send_changes_to_db(&config, &state_group_map, new_state_group_map);
+    }
 
     if config.graphs {
         graphing::make_graphs(&state_group_map, new_state_group_map);
@@ -557,6 +580,7 @@ impl Config {
         level_sizes: String,
         transactions: bool,
         graphs: bool,
+        commit_changes: bool,
     ) -> Result<Config, String> {
         let mut output: Option<File> = None;
         if let Some(file) = output_file {
@@ -583,6 +607,7 @@ impl Config {
             level_sizes,
             transactions,
             graphs,
+            commit_changes,
         })
     }
 }
@@ -605,7 +630,8 @@ impl Config {
     // have this default to true as is much worse to not have it if you need it
     // than to have it and not need it
     transactions = true,
-    graphs = false
+    graphs = false,
+    commit_changes = false,
 )]
 fn run_compression(
     db_url: String,
@@ -618,6 +644,7 @@ fn run_compression(
     level_sizes: String,
     transactions: bool,
     graphs: bool,
+    commit_changes: bool,
 ) -> PyResult<()> {
     let config = Config::new(
         db_url,
@@ -630,6 +657,7 @@ fn run_compression(
         level_sizes,
         transactions,
         graphs,
+        commit_changes,
     );
     match config {
         Err(e) => Err(PyErr::new::<exceptions::PyException, _>(e)),
@@ -1071,6 +1099,7 @@ mod pyo3_tests {
         let level_sizes = "100,50,25".to_string();
         let transactions = false;
         let graphs = false;
+        let commit_changes = false;
 
         let config = Config::new(
             db_url.clone(),
@@ -1083,6 +1112,7 @@ mod pyo3_tests {
             level_sizes,
             transactions,
             graphs,
+            commit_changes,
         )
         .unwrap();
 
@@ -1099,6 +1129,7 @@ mod pyo3_tests {
         );
         assert_eq!(config.transactions, transactions);
         assert_eq!(config.graphs, graphs);
+        assert_eq!(config.commit_changes, commit_changes);
     }
 
     #[test]
@@ -1114,6 +1145,7 @@ mod pyo3_tests {
         let level_sizes = "128,64,32".to_string();
         let transactions = true;
         let graphs = true;
+        let commit_changes = true;
 
         let config = Config::new(
             db_url.clone(),
@@ -1126,6 +1158,7 @@ mod pyo3_tests {
             level_sizes,
             transactions,
             graphs,
+            commit_changes,
         )
         .unwrap();
 
@@ -1142,5 +1175,6 @@ mod pyo3_tests {
         );
         assert_eq!(config.transactions, transactions);
         assert_eq!(config.graphs, graphs);
+        assert_eq!(config.commit_changes, commit_changes);
     }
 }
