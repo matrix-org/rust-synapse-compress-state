@@ -50,6 +50,7 @@ pub struct StateGroupEntry {
 }
 
 /// Helper struct for parsing the `level_sizes` argument.
+#[derive(PartialEq, Debug)]
 struct LevelSizes(Vec<usize>);
 
 impl FromStr for LevelSizes {
@@ -618,4 +619,158 @@ fn run_compression(
 fn synapse_compress_state(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_compression, m)?)?;
     Ok(())
+}
+
+// TESTS START HERE
+
+#[cfg(test)]
+mod level_sizes_tests {
+    use std::str::FromStr;
+
+    use crate::LevelSizes;
+
+    #[test]
+    fn from_str_produces_correct_sizes() {
+        let input_string = "100,50,25";
+
+        let levels = LevelSizes::from_str(input_string).unwrap();
+
+        let mut levels_iter = levels.0.iter();
+
+        assert_eq!(levels_iter.next().unwrap(), &100);
+        assert_eq!(levels_iter.next().unwrap(), &50);
+        assert_eq!(levels_iter.next().unwrap(), &25);
+        assert_eq!(levels_iter.next(), None);
+    }
+
+    #[test]
+    fn from_str_produces_err_if_not_list_of_numbers() {
+        let input_string = "100-sheep-25";
+
+        let result = LevelSizes::from_str(input_string);
+
+        assert!(result.is_err());
+    }
+}
+
+#[cfg(test)]
+mod lib_tests {
+    use std::collections::BTreeMap;
+
+    use state_map::StateMap;
+    use string_cache::DefaultAtom as Atom;
+
+    use crate::{collapse_state_maps, StateGroupEntry};
+
+    #[test]
+    fn collapse_state_maps_works_for_non_snapshot() {
+        let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None;
+
+        // This starts with the following structure
+        //
+        // 0-1-2-3-4-5-6-7-8-9-10-11-12-13
+        //
+        // Each group i has state:
+        //     ('node','is',      i)
+        //     ('group',  j, 'seen') where j is less than i
+        for i in 0i64..=13i64 {
+            let mut entry = StateGroupEntry {
+                in_range: true,
+                prev_state_group: prev,
+                state_map: StateMap::new(),
+            };
+            entry
+                .state_map
+                .insert("group", &i.to_string(), "seen".into());
+            entry.state_map.insert("node", "is", i.to_string().into());
+
+            initial.insert(i, entry);
+
+            prev = Some(i)
+        }
+
+        let result_state = collapse_state_maps(&initial, 3);
+
+        let mut expected_state: StateMap<Atom> = StateMap::new();
+        expected_state.insert("node", "is", "3".into());
+        expected_state.insert("group", "0", "seen".into());
+        expected_state.insert("group", "1", "seen".into());
+        expected_state.insert("group", "2", "seen".into());
+        expected_state.insert("group", "3", "seen".into());
+
+        assert_eq!(result_state, expected_state);
+    }
+
+    #[test]
+    fn collapse_state_maps_works_for_snapshot() {
+        let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = None;
+
+        // This starts with the following structure
+        //
+        // 0-1-2-3-4-5-6-7-8-9-10-11-12-13
+        //
+        // Each group i has state:
+        //     ('node','is',      i)
+        //     ('group',  j, 'seen') where j is less than i
+        for i in 0i64..=13i64 {
+            let mut entry = StateGroupEntry {
+                in_range: true,
+                prev_state_group: prev,
+                state_map: StateMap::new(),
+            };
+            entry
+                .state_map
+                .insert("group", &i.to_string(), "seen".into());
+            entry.state_map.insert("node", "is", i.to_string().into());
+
+            initial.insert(i, entry);
+
+            prev = Some(i)
+        }
+
+        let result_state = collapse_state_maps(&initial, 0);
+
+        let mut expected_state: StateMap<Atom> = StateMap::new();
+        expected_state.insert("node", "is", "0".into());
+        expected_state.insert("group", "0", "seen".into());
+
+        assert_eq!(result_state, expected_state);
+    }
+
+    #[test]
+    #[should_panic]
+    fn collapse_state_maps_panics_if_pred_not_in_map() {
+        let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+        let mut prev = Some(14); // note will not be in map
+
+        // This starts with the following structure
+        //
+        // N.B. Group 14 will only exist as the predecessor of 0
+        // There is no group 14 in the map
+        //
+        // (14)-0-1-2-3-4-5-6-7-8-9-10-11-12-13
+        //
+        // Each group i has state:
+        //     ('node','is',      i)
+        //     ('group',  j, 'seen') where j is less than i
+        for i in 0i64..=13i64 {
+            let mut entry = StateGroupEntry {
+                in_range: true,
+                prev_state_group: prev,
+                state_map: StateMap::new(),
+            };
+            entry
+                .state_map
+                .insert("group", &i.to_string(), "seen".into());
+            entry.state_map.insert("node", "is", i.to_string().into());
+
+            initial.insert(i, entry);
+
+            prev = Some(i)
+        }
+
+        collapse_state_maps(&initial, 0);
+    }
 }
