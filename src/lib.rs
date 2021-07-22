@@ -74,7 +74,6 @@ pub struct Config {
     db_url: String,
     output_file: Option<File>,
     room_id: String,
-    max_state_group: Option<i64>,
     min_saved_rows: Option<i32>,
     transactions: bool,
     level_sizes: LevelSizes,
@@ -102,13 +101,6 @@ impl Config {
                 .help("The room to process")
                 .takes_value(true)
                 .required(true),
-        ).arg(
-            Arg::with_name("max_state_group")
-                .short("s")
-                .value_name("MAX_STATE_GROUP")
-                .help("The maximum state group to process up to")
-                .takes_value(true)
-                .required(false),
         ).arg(
             Arg::with_name("min_saved_rows")
                 .short("m")
@@ -162,10 +154,6 @@ impl Config {
             .value_of("room_id")
             .expect("room_id should be required since no file");
 
-        let max_state_group = matches
-            .value_of("max_state_group")
-            .map(|s| s.parse().expect("max_state_group must be an integer"));
-
         let min_saved_rows = matches
             .value_of("min_saved_rows")
             .map(|v| v.parse().expect("COUNT must be an integer"));
@@ -181,7 +169,6 @@ impl Config {
             db_url: String::from(db_url),
             output_file,
             room_id: String::from(room_id),
-            max_state_group,
             min_saved_rows,
             transactions,
             level_sizes,
@@ -210,7 +197,7 @@ pub fn run(mut config: Config) {
     println!("Fetching state from DB for room '{}'...", config.room_id);
 
     let state_group_map =
-        database::get_data_from_db(&config.db_url, &config.room_id, config.max_state_group);
+        database::get_data_from_db(&config.db_url, &config.room_id);
 
     println!("Number of state groups: {}", state_group_map.len());
 
@@ -464,7 +451,6 @@ impl Config {
         db_url: String,
         room_id: String,
         output_file: Option<String>,
-        max_state_group: Option<i64>,
         min_saved_rows: Option<i32>,
         transactions: bool,
         level_sizes: String,
@@ -488,7 +474,6 @@ impl Config {
             db_url,
             output_file,
             room_id,
-            max_state_group,
             min_saved_rows,
             transactions,
             level_sizes,
@@ -507,7 +492,6 @@ impl Config {
     // db_url has no default
     // room_id  has no default
     output_file = "None",
-    max_state_group = "None",
     min_saved_rows = "None",
     transactions = false,
     level_sizes = "String::from(\"100,50,25\")",
@@ -517,7 +501,6 @@ fn run_compression(
     db_url: String,
     room_id: String,
     output_file: Option<String>,
-    max_state_group: Option<i64>,
     min_saved_rows: Option<i32>,
     transactions: bool,
     level_sizes: String,
@@ -527,7 +510,6 @@ fn run_compression(
         db_url,
         room_id,
         output_file,
-        max_state_group,
         min_saved_rows,
         transactions,
         level_sizes,

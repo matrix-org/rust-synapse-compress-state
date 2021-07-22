@@ -14,7 +14,7 @@
 
 use indicatif::{ProgressBar, ProgressStyle};
 use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
-use postgres::{fallible_iterator::FallibleIterator, types::ToSql, Client};
+use postgres::{fallible_iterator::FallibleIterator, Client};
 use postgres_openssl::MakeTlsConnector;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use std::{borrow::Cow, collections::BTreeMap, fmt};
@@ -25,7 +25,6 @@ use super::StateGroupEntry;
 /// specific room.
 ///
 /// - Connects to the database
-/// - Fetches rows with group id lower than max
 /// - Recursively searches for missing predecessors and adds those
 ///
 /// # Arguments
@@ -33,13 +32,9 @@ use super::StateGroupEntry;
 /// * `room_id`         -   The ID of the room in the database
 /// * `db_url`          -   The URL of a Postgres database. This should be of the
 ///                         form: "postgresql://user:pass@domain:port/database"
-/// * `max_state_group` -   If specified, then only fetch the entries for state
-///                         groups lower than or equal to this number. (N.B. all
-///                         predecessors are also fetched)
 pub fn get_data_from_db(
     db_url: &str,
     room_id: &str,
-    max_state_group: Option<i64>,
 ) -> BTreeMap<i64, StateGroupEntry> {
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
     builder.set_verify(SslVerifyMode::NONE);
@@ -47,7 +42,7 @@ pub fn get_data_from_db(
 
     let mut client = Client::connect(db_url, connector).unwrap();
 
-    let mut state_group_map = get_initial_data_from_db(&mut client, room_id, max_state_group);
+    let mut state_group_map = get_initial_data_from_db(&mut client, room_id);
 
     println!("Got initial state from database. Checking for any missing state groups...");
 
@@ -58,7 +53,6 @@ pub fn get_data_from_db(
     // we need to do this recursively until we don't find any more missing.
     //
     // N.B. This does NOT currently fetch the deltas for the missing groups!
-    // By carefully chosen max_state_group this might cause issues...?
     loop {
         let mut missing_sgs: Vec<_> = state_group_map
             .iter()
@@ -108,7 +102,6 @@ pub fn get_data_from_db(
 fn get_initial_data_from_db(
     client: &mut Client,
     room_id: &str,
-    max_state_group: Option<i64>,
 ) -> BTreeMap<i64, StateGroupEntry> {
     // Query to get id, predecessor and delta for each state group
     let sql = r#"
@@ -121,12 +114,8 @@ fn get_initial_data_from_db(
 
     // Adds additional constraint if a max_state_group has been specified
     // Then sends query to the datatbase
-    let mut rows = if let Some(s) = max_state_group {
-        let params: Vec<&dyn ToSql> = vec![&room_id, &s];
-        client.query_raw(format!(r"{} AND m.id <= $2", sql).as_str(), params)
-    } else {
+    let mut rows = 
         client.query_raw(sql, &[room_id])
-    }
     .unwrap();
 
     // Copy the data from the database into a map
