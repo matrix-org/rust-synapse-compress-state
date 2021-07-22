@@ -207,22 +207,17 @@ fn main() {
 
     // First we need to get the current state groups
     println!("Fetching state from DB for room '{}'...", config.room_id);
-    
-    let state_group_map = database::get_data_from_db(
-        &config.db_url,
-        &config.room_id, 
-        config.max_state_group
-    );
+
+    let state_group_map =
+        database::get_data_from_db(&config.db_url, &config.room_id, config.max_state_group);
 
     println!("Number of state groups: {}", state_group_map.len());
-
 
     let original_summed_size = state_group_map
         .iter()
         .fold(0, |acc, (_, v)| acc + v.state_map.len());
 
     println!("Number of rows in current table: {}", original_summed_size);
-
 
     // Now we actually call the compression algorithm.
 
@@ -231,7 +226,6 @@ fn main() {
     let compressor = Compressor::compress(&state_group_map, &config.level_sizes.0);
 
     let new_state_group_map = compressor.new_state_group_map;
-
 
     // Done! Now to print a bunch of stats.
 
@@ -247,7 +241,6 @@ fn main() {
         ratio * 100.
     );
 
-
     println!("Compression Statistics:");
     println!(
         "  Number of forced resets due to lacking prev: {}",
@@ -261,7 +254,6 @@ fn main() {
         "  Number of state groups changed: {}",
         compressor.stats.state_groups_changed
     );
-
 
     if let Some(min) = config.min_saved_rows {
         let saving = (original_summed_size - compressed_summed_size) as i32;
@@ -280,25 +272,20 @@ fn main() {
     // `transactions` argument is set we wrap each change to a state group in a
     // transaction.
 
-    output_sql(&mut config,
-        &state_group_map, 
-        &new_state_group_map
-    );
-
+    output_sql(&mut config, &state_group_map, &new_state_group_map);
 }
 
 fn output_sql(
     config: &mut Config,
     old_map: &BTreeMap<i64, StateGroupEntry>,
-    new_map: &BTreeMap<i64, StateGroupEntry>
-) 
-{
+    new_map: &BTreeMap<i64, StateGroupEntry>,
+) {
     if config.output_file.is_none() {
         return;
     }
 
     println!("Writing changes...");
-    
+
     let pb = ProgressBar::new(old_map.len() as u64);
     pb.set_style(
         ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
@@ -307,7 +294,6 @@ fn output_sql(
     pb.enable_steady_tick(100);
 
     if let Some(output) = &mut config.output_file {
-
         for (sg, old_entry) in old_map {
             let new_entry = &new_map[sg];
 
@@ -372,7 +358,7 @@ fn output_sql(
 
 fn check_that_maps_match(
     old_map: &BTreeMap<i64, StateGroupEntry>,
-    new_map: &BTreeMap<i64, StateGroupEntry>
+    new_map: &BTreeMap<i64, StateGroupEntry>,
 ) {
     println!("Checking that state maps match...");
 
@@ -383,7 +369,6 @@ fn check_that_maps_match(
     pb.set_message("state groups");
     pb.enable_steady_tick(100);
 
-    
     // Now let's iterate through and assert that the state for each group
     // matches between the two versions.
     old_map
