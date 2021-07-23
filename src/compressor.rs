@@ -57,6 +57,15 @@ impl Level {
         }
     }
 
+    /// Creates a new level from stored state
+    pub fn restore(max_length: usize, current_chain_length: usize, current: Option<i64>) -> Level {
+        Level {
+            max_length,
+            current_chain_length,
+            current,
+        }
+    }
+
     /// Update the current head of this level. If delta is true then it means
     /// that given state group will (probably) reference the previous head.
     ///
@@ -125,6 +134,30 @@ impl<'a> Compressor<'a> {
 
         compressor.create_new_tree();
 
+        compressor
+    }
+
+    // used when restoring compressor state from a previous run
+    // in which case the levels heads are also known
+    pub fn compress_from_save(
+        original_state_map: &'a BTreeMap<i64, StateGroupEntry>,
+        level_info: Vec<(usize, usize, Option<i64>)>,
+    ) -> Compressor<'a> {
+        let levels = level_info
+            .iter()
+            .map(|(max_length, curr_length, curr_head)| {
+                Level::restore(*max_length, *curr_length, *curr_head)
+            })
+            .collect();
+
+        let mut compressor = Compressor {
+            original_state_map,
+            new_state_group_map: BTreeMap::new(),
+            levels,
+            stats: Stats::default(),
+        };
+
+        compressor.create_new_tree();
         compressor
     }
 
