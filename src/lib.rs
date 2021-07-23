@@ -514,28 +514,28 @@ fn output_sql(
 /// Information about what compressor did to chunk that it was ran on
 pub struct ChunkStats {
     // The state of each of the levels of the compressor when it stopped
-    new_level_info: Vec<(usize, usize, Option<i64>)>,
+    pub new_level_info: Vec<(usize, usize, Option<i64>)>,
     // The last state_group that was compressed
     // (to continue from where the compressor stopped, call with this as 'start' value)
-    last_compressed_group: i64,
+    pub last_compressed_group: i64,
     // The number of rows in the database for the current chunk of state_groups before compressing
-    original_num_rows: usize,
+    pub original_num_rows: usize,
     // The number of rows in the database for the current chunk of state_groups after compressing
-    new_num_rows: usize,
+    pub new_num_rows: usize,
     // Whether or not the changes were commited to the database
-    commited: bool,
+    pub commited: bool,
 }
 
 pub fn continue_run(
     start: i64,
     chunk_size: i64,
-    db_url: String,
-    room_id: String,
+    db_url: &str,
+    room_id: &str,
     level_info: &[(usize, usize, Option<i64>)],
 ) -> ChunkStats {
     // First we need to get the current state groups
     let (state_group_map, max_group_found) =
-        database::reload_data_from_db(&db_url, &room_id, Some(start), Some(chunk_size), level_info);
+        database::reload_data_from_db(db_url, room_id, Some(start), Some(chunk_size), level_info);
 
     let original_num_rows = state_group_map
         .iter()
@@ -583,9 +583,9 @@ pub fn continue_run(
         };
     }
 
-    check_that_maps_match(&state_group_map, &new_state_group_map);
+    check_that_maps_match(&state_group_map, new_state_group_map);
 
-    database::send_changes_to_db(&db_url, &room_id, &state_group_map, &new_state_group_map);
+    database::send_changes_to_db(db_url, room_id, &state_group_map, new_state_group_map);
 
     ChunkStats {
         new_level_info: compressor.get_level_info(),

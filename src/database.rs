@@ -50,7 +50,8 @@ pub fn get_data_from_db(
     builder.set_verify(SslVerifyMode::NONE);
     let connector = MakeTlsConnector::new(builder.build());
 
-    let mut client = Client::connect(db_url, connector).unwrap();
+    let mut client = Client::connect(db_url, connector)
+        .unwrap_or_else(|e| panic!("Error connecting to the database: {}", e));
 
     let state_group_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
 
@@ -90,7 +91,6 @@ pub fn reload_data_from_db(
     room_id: &str,
     min_state_group: Option<i64>,
     groups_to_compress: Option<i64>,
-    max_state_group: Option<i64>,
     level_info: &[(usize, usize, Option<i64>)],
 ) -> (BTreeMap<i64, StateGroupEntry>, i64) {
     // connect to the database
@@ -111,7 +111,8 @@ pub fn reload_data_from_db(
         room_id,
         min_state_group,
         groups_to_compress,
-        max_state_group,
+        // max state group not used when saving and loading
+        None,
         state_group_map,
     )
 }
