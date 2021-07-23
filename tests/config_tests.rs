@@ -1044,7 +1044,6 @@ fn run_respects_groups_to_compress() {
     assert!(database_structure_matches_map(&expected))
 }
 
-
 #[test]
 #[serial(db)]
 fn run_is_idempotent_when_run_on_whole_room() {
@@ -1122,7 +1121,7 @@ fn run_is_idempotent_when_run_on_whole_room() {
         graphs,
         commit_changes,
     );
-    
+
     let config2 = Config::new(
         db_url,
         output_file2,
@@ -1136,7 +1135,6 @@ fn run_is_idempotent_when_run_on_whole_room() {
         commit_changes,
     );
 
-    
     // We are aiming for the following structure in the database
     // i.e. groups 6 and 9 should have changed from initial map
     // N.B. this saves 11 rows
@@ -1216,7 +1214,6 @@ fn run_is_idempotent_when_run_on_whole_room() {
 
     // Check that the structure of the database matches the expected structure
     assert!(database_structure_matches_map(&expected));
-
 
     // Run the compressor with those settings for the second time
     run(config2);
