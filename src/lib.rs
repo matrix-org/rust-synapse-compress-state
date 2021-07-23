@@ -349,6 +349,10 @@ pub fn run(mut config: Config) {
         compressor.stats.state_groups_changed
     );
 
+    if config.graphs {
+        graphing::make_graphs(&state_group_map, new_state_group_map);
+    }
+
     if ratio > 1.0 {
         println!("This compression would not remove any rows. Exiting.");
         return;
@@ -381,10 +385,6 @@ pub fn run(mut config: Config) {
             &state_group_map,
             new_state_group_map,
         );
-    }
-
-    if config.graphs {
-        graphing::make_graphs(&state_group_map, new_state_group_map);
     }
 }
 
