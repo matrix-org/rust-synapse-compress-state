@@ -137,11 +137,12 @@ impl<'a> Compressor<'a> {
         compressor
     }
 
-    // used when restoring compressor state from a previous run
-    // in which case the levels heads are also known
+    /// Creates a compressor and runs the compression algorithm.
+    /// used when restoring compressor state from a previous run
+    /// in which case the levels heads are also known
     pub fn compress_from_save(
         original_state_map: &'a BTreeMap<i64, StateGroupEntry>,
-        level_info: Vec<(usize, usize, Option<i64>)>,
+        level_info: &[(usize, usize, Option<i64>)],
     ) -> Compressor<'a> {
         let levels = level_info
             .iter()
@@ -159,6 +160,14 @@ impl<'a> Compressor<'a> {
 
         compressor.create_new_tree();
         compressor
+    }
+
+    /// Returns all the state required to save the compressor so it can be continued later
+    pub fn get_level_info(&self) -> Vec<(usize, usize, Option<i64>)> {
+        self.levels
+            .iter()
+            .map(|l| (l.max_length, l.current_chain_length, l.current))
+            .collect()
     }
 
     /// Actually runs the compression algorithm
