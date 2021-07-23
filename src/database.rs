@@ -23,6 +23,16 @@ use crate::{generate_sql, Config};
 
 use super::StateGroupEntry;
 
+pub fn get_data_from_db(
+    db_url: &str,
+    room_id: &str,
+    min_state_group: Option<i64>,
+    groups_to_compress: Option<i64>,
+    max_state_group: Option<i64>,
+) -> (BTreeMap<i64, StateGroupEntry>, i64) {
+    load_map_from_db(db_url, room_id, min_state_group, groups_to_compress, max_state_group)
+}
+
 /// Fetch the entries in state_groups_state (and their prev groups) for a
 /// specific room.
 ///
@@ -43,7 +53,7 @@ use super::StateGroupEntry;
 /// * 'groups_to_compress'  -   The number of groups to get from the database before stopping
 /// * `max_state_group`     -   If specified, then only fetch the entries for state
 ///                             groups lower than or equal to this number.
-pub fn get_data_from_db(
+fn load_map_from_db(
     db_url: &str,
     room_id: &str,
     min_state_group: Option<i64>,
