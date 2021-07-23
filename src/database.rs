@@ -23,21 +23,8 @@ use crate::Config;
 
 use super::StateGroupEntry;
 
-pub fn get_data_from_db(
-    db_url: &str,
-    room_id: &str,
-    min_state_group: Option<i64>,
-    groups_to_compress: Option<i64>,
-) -> (BTreeMap<i64, StateGroupEntry>, i64) {
-    load_map_from_db(db_url, room_id, min_state_group, groups_to_compress)
-}
-
 /// Fetch the entries in state_groups_state (and their prev groups) for a
 /// specific room.
-///
-/// - Connects to the database
-/// - Fetches the first [group] rows with group id after [min]
-/// - Recursively searches for missing predecessors and adds those
 ///
 /// Returns with the state_group map and the id of the last group that was used
 ///
@@ -51,7 +38,7 @@ pub fn get_data_from_db(
 ///                             also requires groups_to_compress to be specified
 /// * 'groups_to_compress'  -   The number of groups to get from the database before stopping
 
-fn load_map_from_db(
+pub fn get_data_from_db(
     db_url: &str,
     room_id: &str,
     min_state_group: Option<i64>,
@@ -64,13 +51,162 @@ fn load_map_from_db(
 
     let mut client = Client::connect(db_url, connector).unwrap();
 
+    let state_group_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+
+    load_map_from_db(
+        &mut client,
+        room_id,
+        min_state_group,
+        groups_to_compress,
+        state_group_map,
+    )
+}
+
+/// Fetch the entries in state_groups_state (and their prev groups) for a
+/// specific room. This method should only be called if resuming the compressor from
+/// where it last finished - and as such also loads in the state groups from the heads
+/// of each of the levels (as they were at the end of the last run of the compressor)
+///
+/// Returns with the state_group map and the id of the last group that was used
+///
+/// # Arguments
+///
+/// * `room_id`             -   The ID of the room in the database
+/// * `db_url`              -   The URL of a Postgres database. This should be of the
+///                             form: "postgresql://user:pass@domain:port/database"
+/// * `min_state_group`     -   If specified, then only fetch the entries for state
+///                             groups greater than (but not equal) to this number. It
+///                             also requires groups_to_compress to be specified
+/// * 'groups_to_compress'  -   The number of groups to get from the database before stopping
+/// * 'level_info'          -   The maximum size, current length and current head for each
+///                             level (as it was when the compressor last finished for this
+///                             room)
+
+pub fn reload_data_from_db(
+    db_url: &str,
+    room_id: &str,
+    min_state_group: Option<i64>,
+    groups_to_compress: Option<i64>,
+    level_info: &[(usize, usize, Option<i64>)],
+) -> (BTreeMap<i64, StateGroupEntry>, i64) {
+    // connect to the database
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    builder.set_verify(SslVerifyMode::NONE);
+    let connector = MakeTlsConnector::new(builder.build());
+
+    let mut client = Client::connect(db_url, connector).unwrap();
+
+    // load just the state_groups at the head of each level
+    // this doesn't load their predecessors as that will be done at the end of
+    // load_map_from_db()
+    let state_group_map: BTreeMap<i64, StateGroupEntry> = load_level_heads(&mut client, level_info);
+
+    load_map_from_db(
+        &mut client,
+        room_id,
+        min_state_group,
+        groups_to_compress,
+        state_group_map,
+    )
+}
+
+/// Finds the state_groups that are at the head of each compressor level
+/// NOTE this does not also retrieve their predecessors
+///
+/// # Arguments
+///
+/// * `client'  -   A Postgres client to make requests with
+/// * `levels'  -   The levels who's heads are being requested
+fn load_level_heads(
+    client: &mut Client,
+    level_info: &[(usize, usize, Option<i64>)],
+) -> BTreeMap<i64, StateGroupEntry> {
+    // obtain all of the heads that aren't None from level_info
+    let level_heads: Vec<i64> = level_info
+        .iter()
+        .map(|(_, _, head)| {
+            if let Some(c) = *head {
+                return c;
+            }
+            -1
+        })
+        .filter(|c| *c > 0)
+        .collect();
+
+    // Query to get id, predecessor and deltas for each state group
+    let sql = r#"
+        SELECT m.id, prev_state_group, type, state_key, s.event_id
+        FROM state_groups AS m
+        LEFT JOIN state_groups_state AS s ON (m.id = s.state_group)
+        LEFT JOIN state_group_edges AS e ON (m.id = e.state_group)
+        WHERE m.id = ANY($1)
+    "#;
+
+    // Actually do the query
+    let mut rows = client.query_raw(sql, &[&level_heads]).unwrap();
+
+    // Copy the data from the database into a map
+    let mut state_group_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+
+    while let Some(row) = rows.next().unwrap() {
+        // The row in the map to copy the data to
+        // NOTE: default StateGroupEntry has in_range as false
+        // This is what we want since as a level head, it has already been compressed by the
+        // previous run!
+        let entry = state_group_map.entry(row.get(0)).or_default();
+
+        // Save the predecessor (this may already be there)
+        entry.prev_state_group = row.get(1);
+
+        // Copy the single delta from the predecessor stored in this row
+        if let Some(etype) = row.get::<_, Option<String>>(2) {
+            entry.state_map.insert(
+                &etype,
+                &row.get::<_, String>(3),
+                row.get::<_, String>(4).into(),
+            );
+        }
+    }
+    state_group_map
+}
+
+/// Fetch the entries in state_groups_state (and their prev groups) for a
+/// specific room within a certain range. These are appended onto the provided
+/// map.
+///
+/// - Fetches the first [group] rows with group id after [min]
+/// - Recursively searches for missing predecessors and adds those
+///
+/// Returns with the state_group map and the id of the last group that was used
+///
+/// # Arguments
+///
+/// * `client`              -   A Postgres client to make requests with
+/// * `room_id`             -   The ID of the room in the database
+/// * `min_state_group`     -   If specified, then only fetch the entries for state
+///                             groups greater than (but not equal) to this number. It
+///                             also requires groups_to_compress to be specified
+/// * 'groups_to_compress'  -   The number of groups to get from the database before stopping
+/// * 'state_group_map'     -   The map to populate with the entries from the database
+
+fn load_map_from_db(
+    client: &mut Client,
+    room_id: &str,
+    min_state_group: Option<i64>,
+    groups_to_compress: Option<i64>,
+    mut state_group_map: BTreeMap<i64, StateGroupEntry>,
+) -> (BTreeMap<i64, StateGroupEntry>, i64) {
     // Search for the group id of the groups_to_compress'th group after min_state_group
     // If this is saved, then the compressor can continue by having min_state_group being
     // set to this maximum
-    let max_group_found = find_max_group(&mut client, room_id, min_state_group, groups_to_compress);
+    let max_group_found = find_max_group(client, room_id, min_state_group, groups_to_compress);
 
-    let mut state_group_map =
-        get_initial_data_from_db(&mut client, room_id, min_state_group, max_group_found);
+    state_group_map.append(&mut get_initial_data_from_db(
+        client,
+        room_id,
+        min_state_group,
+        max_group_found,
+    ));
 
     println!("Got initial state from database. Checking for any missing state groups...");
 
@@ -111,7 +247,7 @@ fn load_map_from_db(
         // println!("Missing {} state groups", missing_sgs.len());
 
         // find state groups not picked up already and add them to the map
-        let map = get_missing_from_db(&mut client, &missing_sgs, min_state_group, max_group_found);
+        let map = get_missing_from_db(client, &missing_sgs, min_state_group, max_group_found);
         for (k, v) in map.into_iter() {
             state_group_map.entry(k).or_insert(v);
         }
