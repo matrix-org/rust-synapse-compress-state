@@ -36,6 +36,11 @@ dependencies = [
 [[package]]
 name = "auto_compressor"
 version = "0.1.0"
+dependencies = [
+ "openssl",
+ "postgres",
+ "postgres-openssl",
+]
 
 [[package]]
 name = "autocfg"
