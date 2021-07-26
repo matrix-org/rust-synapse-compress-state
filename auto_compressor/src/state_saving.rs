@@ -17,10 +17,10 @@ pub fn connect_to_database(db_url: &str) -> Result<Client, Error> {
     Client::connect(db_url, connector)
 }
 
-// Creates the state_compressor_state table in the database if it doesn't already
-// exist
+// Creates the state_compressor_state and state_compressor progress tables
+// in the database if they don't already exist
 pub fn create_tables_if_needed(client: &mut Client) -> Result<u64, Error> {
-    let sql = r#"
+    let create_state_table = r#"
         CREATE TABLE IF NOT EXISTS state_compressor_state (
             room_id TEXT NOT NULL,
             level_num INT NOT NULL,
@@ -29,7 +29,15 @@ pub fn create_tables_if_needed(client: &mut Client) -> Result<u64, Error> {
             current_head BIGINT NOT NULL
         )"#;
 
-    client.execute(sql, &[])
+    client.execute(create_state_table, &[])?;
+
+    let create_progress_table = r#"
+        CREATE TABLE IF NOT EXISTS state_compressor_progress (
+            room_id TEXT NOT NULL,
+            last_compressed BIGINT NOT NULL
+        )"#;
+
+    client.execute(create_progress_table, &[])
 }
 
 // Retrieve the level info so we can restart the compressor
@@ -172,6 +180,64 @@ pub fn write_room_compressor_state(
 
     // Wrap all the changes to the state for this room in a transaction
     // This prevents accidentally having malformed compressor start info
+    let mut write_transaction = client.transaction()?;
+    write_transaction.batch_execute(&sql)?;
+    write_transaction.commit()?;
+
+    Ok(())
+}
+
+pub fn read_room_compressor_progress(
+    client: &mut Client,
+    room_id: &str,
+) -> Result<Option<i64>, Error> {
+    let sql = r#"
+        SELECT last_compressed 
+        FROM state_compressor_progress as p
+        WHERE p.room_id = $1
+    "#;
+
+    let last_compressed = client.query(sql, &[&room_id])?;
+
+    // There should only be one last_compressed field for each room
+    if last_compressed.len() > 1 {
+        eprint!(
+            "Multiple last_compressed fields found for room {}, starting from 1st group...",
+            room_id
+        );
+        return Ok(None);
+    }
+
+    match last_compressed.get(0) {
+        None => Ok(None),
+        Some(r) => Ok(Some(r.get(0)))
+    }
+}
+
+pub fn write_room_compressor_progress(
+    client: &mut Client,
+    room_id: &str,
+    last_compressed: i64,
+) -> Result<(), Error> {
+    // The query we are going to build up
+    let mut sql = "".to_string();
+
+    
+    // delete the old information for this level from the database
+    sql.push_str(&format!(
+        "DELETE FROM state_compressor_progress WHERE room_id = {};\n",
+        PGEscape(room_id),
+    ));
+
+    // Add the new informaton for this level into the database
+    sql.push_str(&format!(
+        "INSERT INTO state_compressor_progress (room_id, last_compressed) VALUES ({},{})",
+        PGEscape(room_id),
+        last_compressed,
+    ));
+    
+    // Wrap the changes this room in a transaction
+    // This prevents accidentally deleting the old data without replacing it
     let mut write_transaction = client.transaction()?;
     write_transaction.batch_execute(&sql)?;
     write_transaction.commit()?;
