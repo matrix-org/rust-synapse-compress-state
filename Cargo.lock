@@ -40,6 +40,8 @@ dependencies = [
  "openssl",
  "postgres",
  "postgres-openssl",
+ "rand",
+ "serial_test",
 ]
 
 [[package]]

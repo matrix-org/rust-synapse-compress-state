@@ -1,6 +1,12 @@
+use core::fmt;
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use std::borrow::Cow;
+
 use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 use postgres::{fallible_iterator::FallibleIterator, Client, Error};
 use postgres_openssl::MakeTlsConnector;
+
+use crate::LevelState;
 
 // Connects to the database and returns the client to use for the rest of the program
 pub fn connect_to_database(db_url: &str) -> Result<Client, Error> {
@@ -26,16 +32,12 @@ pub fn create_tables_if_needed(client: &mut Client) -> Result<u64, Error> {
     client.execute(sql, &[])
 }
 
-// Helper type to store level info in
-// fields are max length, current length and current head
-type LevelInfo = Vec<(usize, usize, Option<i64>)>;
-
-// Retrieve the level info so we can restart the compressor on
-// a given room
+// Retrieve the level info so we can restart the compressor
+// on a given room
 pub fn read_room_compressor_state(
     client: &mut Client,
     room_id: &str,
-) -> Result<Option<LevelInfo>, Error> {
+) -> Result<Option<Vec<LevelState>>, Error> {
     // Query to retrieve all levels from state_compressor_state
     // Ordered by ascending level_number
     let sql = r#"
@@ -53,18 +55,18 @@ pub fn read_room_compressor_state(
     let mut prev_seen = 0;
 
     // The vector to store the level info from the database in
-    let mut level_info: LevelInfo = Vec::new();
+    let mut level_info: Vec<LevelState> = Vec::new();
 
     // Loop through all the rows retrieved by that query
     while let Some(l) = levels.next()? {
         // read out the fields into variables
-        let level_num: usize = l.get::<_, i64>(0) as usize;
-        let max_size: usize = l.get::<_, i64>(1) as usize;
-        let current_length: usize = l.get::<_, i64>(2) as usize;
+        let level_num: usize = l.get::<_, i32>(0) as usize;
+        let max_size: usize = l.get::<_, i32>(1) as usize;
+        let current_length: usize = l.get::<_, i32>(2) as usize;
 
         // Note that the database stores an int but we want an Option.
         // Since no state_group 0 is created by synapse we use 0 to
-        // represent None. Note that even if this isn't met, we only
+        // represent None. Even if ther is a group 0, we only
         // compresss groups with ID above 0 (so worst case is that
         // group 0 is not compressed which is fine)
         let current_head: Option<i64> = match l.get::<_, i64>(3) {
@@ -119,4 +121,81 @@ pub fn read_room_compressor_state(
 
     // Return the compressor state we retrieved
     Ok(Some(level_info))
+}
+
+// Save the level info so it can be loaded by the next run of the compressor
+// on the same room
+pub fn write_room_compressor_state(
+    client: &mut Client,
+    room_id: &str,
+    level_info: &[LevelState],
+) -> Result<(), Error> {
+    // The query we are going to build up
+    let mut sql = "".to_string();
+
+    // Go through every level that the compressor is using
+    for (level_num, level) in level_info.iter().enumerate() {
+        // the 1st level is level 1 not level 0, but enumerate starts at 0
+        // so need to add 1 to get correct number
+        let level_num = level_num + 1;
+
+        // delete the old information for this level from the database
+        sql.push_str(&format!(
+            "DELETE FROM state_compressor_state WHERE room_id = {} AND level_num = {};\n",
+            PGEscape(room_id),
+            level_num,
+        ));
+
+        // bring the level info out of the tuple
+        let (max_size, current_len, current_head) = level;
+
+        // Note that the database stores an int but current_head is an Option.
+        // Since no state_group 0 is created by synapse we use 0 to
+        // represent None. Even if there is a group 0, we only
+        // compresss groups with ID above 0 (so worst case is that
+        // group 0 is not compressed which is fine)
+        let current_head = current_head.unwrap_or(0);
+
+        // Add the new informaton for this level into the database
+        sql.push_str(&format!(
+            concat!(
+                "INSERT INTO state_compressor_state (room_id, level_num, max_size,",
+                " current_length, current_head) VALUES ({}, {}, {}, {}, {});"
+            ),
+            PGEscape(room_id),
+            level_num,
+            max_size,
+            current_len,
+            current_head,
+        ));
+    }
+
+    // Wrap all the changes to the state for this room in a transaction
+    // This prevents accidentally having malformed compressor start info
+    let mut write_transaction = client.transaction()?;
+    write_transaction.batch_execute(&sql)?;
+    write_transaction.commit()?;
+
+    Ok(())
+}
+
+// TODO: find a library that has an existing safe postgres escape function
+/// Helper function that escapes the wrapped text when writing SQL
+struct PGEscape<'a>(pub &'a str);
+
+impl<'a> fmt::Display for PGEscape<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut delim = Cow::from("$$");
+        while self.0.contains(&delim as &str) {
+            let s: String = thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(10)
+                .map(char::from)
+                .collect();
+
+            delim = format!("${}$", s).into();
+        }
+
+        write!(f, "{}{}{}", delim, self.0, delim)
+    }
 }
