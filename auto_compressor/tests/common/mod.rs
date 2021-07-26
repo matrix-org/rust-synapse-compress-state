@@ -15,6 +15,7 @@ pub fn empty_database() {
     // delete all the contents from all three tables
     let mut sql = "".to_string();
     sql.push_str("DELETE FROM state_compressor_state;\n");
+    sql.push_str("DELETE FROM state_compressor_progress;\n");
 
     client.batch_execute(&sql).unwrap();
 }
