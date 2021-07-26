@@ -187,19 +187,24 @@ pub fn write_room_compressor_state(
     Ok(())
 }
 
+// Retrieve the last state group that was compressed by the previous run
 pub fn read_room_compressor_progress(
     client: &mut Client,
     room_id: &str,
 ) -> Result<Option<i64>, Error> {
+    // The query to send to the database
     let sql = r#"
         SELECT last_compressed 
         FROM state_compressor_progress as p
         WHERE p.room_id = $1
     "#;
 
+    // send the query and store the results in last_compressed
     let last_compressed = client.query(sql, &[&room_id])?;
 
     // There should only be one last_compressed field for each room
+    // and so we compain if there are multiple (as something has gone wrong)
+    // Then return None (as if no field found) and start from the begining again
     if last_compressed.len() > 1 {
         eprint!(
             "Multiple last_compressed fields found for room {}, starting from 1st group...",
@@ -208,12 +213,16 @@ pub fn read_room_compressor_progress(
         return Ok(None);
     }
 
+    // retrieve the 1st row returned from the database
     match last_compressed.get(0) {
+        // if no such row exists then the compressor hasn't been used on this room before
         None => Ok(None),
-        Some(r) => Ok(Some(r.get(0)))
+        // If there is a row, then return the value of last_compressed
+        Some(r) => Ok(Some(r.get(0))),
     }
 }
 
+// Store the last state group that was compressed by the current run
 pub fn write_room_compressor_progress(
     client: &mut Client,
     room_id: &str,
@@ -222,7 +231,6 @@ pub fn write_room_compressor_progress(
     // The query we are going to build up
     let mut sql = "".to_string();
 
-    
     // delete the old information for this level from the database
     sql.push_str(&format!(
         "DELETE FROM state_compressor_progress WHERE room_id = {};\n",
@@ -235,7 +243,7 @@ pub fn write_room_compressor_progress(
         PGEscape(room_id),
         last_compressed,
     ));
-    
+
     // Wrap the changes this room in a transaction
     // This prevents accidentally deleting the old data without replacing it
     let mut write_transaction = client.transaction()?;

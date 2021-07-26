@@ -1,4 +1,10 @@
-use auto_compressor::{LevelState, state_saving::{connect_to_database, create_tables_if_needed, read_room_compressor_progress, read_room_compressor_state, write_room_compressor_progress, write_room_compressor_state}};
+use auto_compressor::{
+    state_saving::{
+        connect_to_database, create_tables_if_needed, read_room_compressor_progress,
+        read_room_compressor_state, write_room_compressor_progress, write_room_compressor_state,
+    },
+    LevelState,
+};
 use serial_test::serial;
 
 mod common;
