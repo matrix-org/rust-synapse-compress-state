@@ -36,7 +36,6 @@ use super::StateGroupEntry;
 /// * `max_state_group` -   If specified, then only fetch the entries for state
 ///                         groups lower than or equal to this number. (N.B. all
 ///                         predecessors are also fetched)
-
 pub fn get_data_from_db(
     db_url: &str,
     room_id: &str,
@@ -106,7 +105,6 @@ pub fn get_data_from_db(
 /// * `max_state_group` -   If specified, then only fetch the entries for state
 ///                         groups lower than or equal to this number. (N.B. doesn't
 ///                         fetch IMMEDIATE predecessors if ID is above this number)
-
 fn get_initial_data_from_db(
     client: &mut Client,
     room_id: &str,
@@ -174,7 +172,6 @@ fn get_initial_data_from_db(
 ///
 /// * `client`          -   A Postgres client to make requests with
 /// * `missing_sgs`     -   An array of missing state_group ids
-
 fn get_missing_from_db(client: &mut Client, missing_sgs: &[i64]) -> BTreeMap<i64, StateGroupEntry> {
     let mut rows = client
         .query_raw(
