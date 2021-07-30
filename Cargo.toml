@@ -26,3 +26,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies.pyo3]
 version = "0.14.1"
 features = ["extension-module","abi3-py36"]
+
+[features]
+default = ["jemalloc"]
+jemalloc = []

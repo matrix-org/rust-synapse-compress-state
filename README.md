@@ -86,3 +86,7 @@ If this happens then try running the following:
 ```
 LD_PATH=/[LONG_PATH]/synapse_compress_state.abi3.so ./my_python_script
 ```
+Or just try disabling jemalloc:
+```
+$ maturin develop --cargo-extra-args="--no-default-features"
+```
