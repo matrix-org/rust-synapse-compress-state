@@ -21,9 +21,7 @@ use pyo3::prelude::*;
 #[global_allocator]
 static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
-use clap::{
-    crate_authors, crate_description, crate_name, crate_version, value_t_or_exit, App, Arg,
-};
+use clap::{crate_authors, crate_description, crate_name, crate_version, value_t, App, Arg};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use state_map::StateMap;
@@ -144,9 +142,9 @@ impl Config {
             .value_of("postgres-url")
             .expect("db url should be required");
 
-        let output_file = matches
-            .value_of("output_file")
-            .map(|path| File::create(path).unwrap());
+        let output_file = matches.value_of("output_file").map(|path| {
+            File::create(path).unwrap_or_else(|e| panic!("Unable to create output file: {}", e))
+        });
 
         let room_id = matches
             .value_of("room_id")
@@ -162,7 +160,8 @@ impl Config {
 
         let transactions = matches.is_present("transactions");
 
-        let level_sizes = value_t_or_exit!(matches, "level_sizes", LevelSizes);
+        let level_sizes = value_t!(matches, "level_sizes", LevelSizes)
+            .unwrap_or_else(|e| panic!("Unable to parse level_sizes: {}", e));
 
         Config {
             db_url: String::from(db_url),
@@ -438,6 +437,8 @@ fn collapse_state_maps(map: &BTreeMap<i64, StateGroupEntry>, state_group: i64) -
 
 impl Config {
     /// Converts string and bool arguments into a Config struct
+    ///
+    /// This function panics if db_url or room_id are empty strings!
     pub fn new(
         db_url: String,
         output_file: String,
@@ -453,7 +454,10 @@ impl Config {
 
         let mut output: Option<File> = None;
         if !output_file.is_empty() {
-            output = Some(File::create(output_file).unwrap());
+            output = Some(
+                File::create(output_file)
+                    .unwrap_or_else(|e| panic!("Unable to create output file: {}", e)),
+            );
         }
         let output_file = output;
 
@@ -463,17 +467,27 @@ impl Config {
 
         let mut max_row: Option<i64> = None;
         if !max_state_group.is_empty() {
-            max_row = Some(max_state_group.parse().unwrap());
+            max_row = Some(
+                max_state_group
+                    .parse()
+                    .expect("max_state_group must be an integer"),
+            );
         }
         let max_state_group = max_row;
 
         let mut min_count: Option<i32> = None;
         if !min_saved_rows.is_empty() {
-            min_count = Some(min_saved_rows.parse().unwrap());
+            min_count = Some(
+                min_saved_rows
+                    .parse()
+                    .expect("min_saved_rows must be an integer"),
+            );
         }
         let min_saved_rows = min_count;
 
-        let level_sizes: LevelSizes = level_sizes.parse().unwrap();
+        let level_sizes: LevelSizes = level_sizes
+            .parse()
+            .unwrap_or_else(|e| panic!("Unable to parse level_sizes: {}", e));
 
         Config {
             db_url,
@@ -490,10 +504,12 @@ impl Config {
 /// Access point for python code
 ///
 /// Default arguments are equivalent to using the command line tool
+/// No default's are provided for db_url or room_id since these arguments
+/// are compulsor (so that new() act's like parse_arguments())
 #[pyfunction(
-    db_url = "String::from(\"\")",
+    // db_url has no default
+    // room_id  has no default
     output_file = "String::from(\"\")",
-    room_id = "String::from(\"\")",
     max_state_group = "String::from(\"\")",
     min_saved_rows = "String::from(\"\")",
     transactions = false,
@@ -501,8 +517,8 @@ impl Config {
 )]
 fn run_compression(
     db_url: String,
-    output_file: String,
     room_id: String,
+    output_file: String,
     max_state_group: String,
     min_saved_rows: String,
     transactions: bool,
