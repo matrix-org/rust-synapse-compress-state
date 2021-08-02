@@ -18,7 +18,8 @@
 
 // This file contains configuring config options, which neccessarily means lots
 // of arguments - this hopefully doesn't make the code unclear
-#![allow(clippy::too_many_arguments)]
+// #[allow(clippy::too_many_arguments)] is therefore used around some functions
+
 use pyo3::{exceptions, prelude::*};
 
 #[cfg(feature = "jemalloc")]
@@ -454,8 +455,12 @@ fn collapse_state_maps(map: &BTreeMap<i64, StateGroupEntry>, state_group: i64) -
 
 impl Config {
     /// Converts string and bool arguments into a Config struct
+<<<<<<< HEAD
     ///
     /// This function panics if db_url or room_id are empty strings!
+=======
+    #[allow(clippy::too_many_arguments)]
+>>>>>>> 366a7f2 (Tell clipyt to only allow specific functions to have more than 7 args)
     pub fn new(
         db_url: String,
         room_id: String,
@@ -496,8 +501,12 @@ impl Config {
 /// Access point for python code
 ///
 /// Default arguments are equivalent to using the command line tool
+<<<<<<< HEAD
 /// No default's are provided for db_url or room_id since these arguments
 /// are compulsory (so that new() act's like parse_arguments())
+=======
+#[allow(clippy::too_many_arguments)]
+>>>>>>> 366a7f2 (Tell clipyt to only allow specific functions to have more than 7 args)
 #[pyfunction(
     // db_url has no default
     // room_id  has no default
