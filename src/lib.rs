@@ -386,8 +386,8 @@ fn check_that_maps_match(
     old_map
         .par_iter() // This uses rayon to run the checks in parallel
         .try_for_each(|(sg, _)| {
-            let expected = collapse_state_maps(&old_map, *sg);
-            let actual = collapse_state_maps(&new_map, *sg);
+            let expected = collapse_state_maps(old_map, *sg);
+            let actual = collapse_state_maps(new_map, *sg);
 
             pb.inc(1);
 
@@ -424,7 +424,7 @@ fn collapse_state_maps(map: &BTreeMap<i64, StateGroupEntry>, state_group: i64) -
 
     for sg in stack.iter().rev() {
         state_map.extend(
-            map[&sg]
+            map[sg]
                 .state_map
                 .iter()
                 .map(|((t, s), e)| ((t, s), e.clone())),

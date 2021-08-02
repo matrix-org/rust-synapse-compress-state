@@ -182,7 +182,7 @@ impl<'a> Compressor<'a> {
     ///
     /// Returns the state map and the actual base state group (if any) used.
     fn get_delta(&mut self, prev_sg: Option<i64>, sg: i64) -> (StateMap<Atom>, Option<i64>) {
-        let state_map = collapse_state_maps(&self.original_state_map, sg);
+        let state_map = collapse_state_maps(self.original_state_map, sg);
 
         let mut prev_sg = if let Some(prev_sg) = prev_sg {
             prev_sg
@@ -194,7 +194,7 @@ impl<'a> Compressor<'a> {
         // a valid base for the state group.
         let mut prev_state_map;
         'outer: loop {
-            prev_state_map = collapse_state_maps(&self.original_state_map, prev_sg);
+            prev_state_map = collapse_state_maps(self.original_state_map, prev_sg);
             for (t, s) in prev_state_map.keys() {
                 if !state_map.contains_key(t, s) {
                     // This is not a valid base as it contains key the new state
