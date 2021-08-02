@@ -16,7 +16,7 @@
 //! Synapse instance's database. Specifically, it aims to reduce the number of
 //! rows that a given room takes up in the `state_groups_state` table.
 
-use pyo3::prelude::*;
+use pyo3::{exceptions, prelude::*};
 
 #[cfg(feature = "jemalloc")]
 #[global_allocator]
@@ -442,55 +442,36 @@ impl Config {
     /// This function panics if db_url or room_id are empty strings!
     pub fn new(
         db_url: String,
-        output_file: String,
         room_id: String,
-        max_state_group: String,
-        min_saved_rows: String,
+        output_file: Option<String>,
+        max_state_group: Option<i64>,
+        min_saved_rows: Option<i32>,
         transactions: bool,
         level_sizes: String,
-    ) -> Config {
-        if db_url.is_empty() {
-            panic!("db url is required");
-        }
+    ) -> Result<Config, String> {
+        // if db_url.is_empty() {
+        //     return Err("A database URL is required".to_string());
+        // }
+
+        // if room_id.is_empty() {
+        //     return Err("room_id is required".to_string());
+        // }
 
         let mut output: Option<File> = None;
-        if !output_file.is_empty() {
-            output = Some(
-                File::create(output_file)
-                    .unwrap_or_else(|e| panic!("Unable to create output file: {}", e)),
-            );
+        if let Some(file) = output_file {
+            output = match File::create(file) {
+                Ok(f) => Some(f),
+                Err(e) => return Err(format!("Unable to create output file: {}", e)),
+            };
         }
         let output_file = output;
 
-        if room_id.is_empty() {
-            panic!("room_id is required");
-        }
+        let level_sizes: LevelSizes = match level_sizes.parse() {
+            Ok(l_sizes) => l_sizes,
+            Err(e) => return Err(format!("Unable to parse level_sizes: {}", e)),
+        };
 
-        let mut max_row: Option<i64> = None;
-        if !max_state_group.is_empty() {
-            max_row = Some(
-                max_state_group
-                    .parse()
-                    .expect("max_state_group must be an integer"),
-            );
-        }
-        let max_state_group = max_row;
-
-        let mut min_count: Option<i32> = None;
-        if !min_saved_rows.is_empty() {
-            min_count = Some(
-                min_saved_rows
-                    .parse()
-                    .expect("min_saved_rows must be an integer"),
-            );
-        }
-        let min_saved_rows = min_count;
-
-        let level_sizes: LevelSizes = level_sizes
-            .parse()
-            .unwrap_or_else(|e| panic!("Unable to parse level_sizes: {}", e));
-
-        Config {
+        Ok(Config {
             db_url,
             output_file,
             room_id,
@@ -498,7 +479,7 @@ impl Config {
             min_saved_rows,
             transactions,
             level_sizes,
-        }
+        })
     }
 }
 
@@ -506,35 +487,41 @@ impl Config {
 ///
 /// Default arguments are equivalent to using the command line tool
 /// No default's are provided for db_url or room_id since these arguments
-/// are compulsor (so that new() act's like parse_arguments())
+/// are compulsory (so that new() act's like parse_arguments())
 #[pyfunction(
     // db_url has no default
     // room_id  has no default
-    output_file = "String::from(\"\")",
-    max_state_group = "String::from(\"\")",
-    min_saved_rows = "String::from(\"\")",
+    output_file = "None",
+    max_state_group = "None",
+    min_saved_rows = "None",
     transactions = false,
     level_sizes = "String::from(\"100,50,25\")"
 )]
 fn run_compression(
     db_url: String,
     room_id: String,
-    output_file: String,
-    max_state_group: String,
-    min_saved_rows: String,
+    output_file: Option<String>,
+    max_state_group: Option<i64>,
+    min_saved_rows: Option<i32>,
     transactions: bool,
     level_sizes: String,
-) {
+) -> PyResult<()> {
     let config = Config::new(
         db_url,
-        output_file,
         room_id,
+        output_file,
         max_state_group,
         min_saved_rows,
         transactions,
         level_sizes,
     );
-    run(config);
+    match config {
+        Err(e) => Err(PyErr::new::<exceptions::PyTypeError, _>(e)),
+        Ok(config) => {
+            run(config);
+            Ok(())
+        }
+    }
 }
 
 /// Python module - "import synapse_compress_state" to use
