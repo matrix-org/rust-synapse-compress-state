@@ -449,14 +449,6 @@ impl Config {
         transactions: bool,
         level_sizes: String,
     ) -> Result<Config, String> {
-        // if db_url.is_empty() {
-        //     return Err("A database URL is required".to_string());
-        // }
-
-        // if room_id.is_empty() {
-        //     return Err("room_id is required".to_string());
-        // }
-
         let mut output: Option<File> = None;
         if let Some(file) = output_file {
             output = match File::create(file) {
