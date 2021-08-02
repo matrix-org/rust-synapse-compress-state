@@ -516,7 +516,7 @@ fn run_compression(
         level_sizes,
     );
     match config {
-        Err(e) => Err(PyErr::new::<exceptions::PyTypeError, _>(e)),
+        Err(e) => Err(PyErr::new::<exceptions::PyException, _>(e)),
         Ok(config) => {
             run(config);
             Ok(())
