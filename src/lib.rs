@@ -16,12 +16,13 @@
 //! Synapse instance's database. Specifically, it aims to reduce the number of
 //! rows that a given room takes up in the `state_groups_state` table.
 
+use pyo3::{exceptions, prelude::*};
+
+#[cfg(feature = "jemalloc")]
 #[global_allocator]
 static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
-use clap::{
-    crate_authors, crate_description, crate_name, crate_version, value_t_or_exit, App, Arg,
-};
+use clap::{crate_authors, crate_description, crate_name, crate_version, value_t, App, Arg};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use state_map::StateMap;
@@ -142,9 +143,9 @@ impl Config {
             .value_of("postgres-url")
             .expect("db url should be required");
 
-        let output_file = matches
-            .value_of("output_file")
-            .map(|path| File::create(path).unwrap());
+        let output_file = matches.value_of("output_file").map(|path| {
+            File::create(path).unwrap_or_else(|e| panic!("Unable to create output file: {}", e))
+        });
 
         let room_id = matches
             .value_of("room_id")
@@ -160,7 +161,8 @@ impl Config {
 
         let transactions = matches.is_present("transactions");
 
-        let level_sizes = value_t_or_exit!(matches, "level_sizes", LevelSizes);
+        let level_sizes = value_t!(matches, "level_sizes", LevelSizes)
+            .unwrap_or_else(|e| panic!("Unable to parse level_sizes: {}", e));
 
         Config {
             db_url: String::from(db_url),
@@ -384,8 +386,8 @@ fn check_that_maps_match(
     old_map
         .par_iter() // This uses rayon to run the checks in parallel
         .try_for_each(|(sg, _)| {
-            let expected = collapse_state_maps(&old_map, *sg);
-            let actual = collapse_state_maps(&new_map, *sg);
+            let expected = collapse_state_maps(old_map, *sg);
+            let actual = collapse_state_maps(new_map, *sg);
 
             pb.inc(1);
 
@@ -422,7 +424,7 @@ fn collapse_state_maps(map: &BTreeMap<i64, StateGroupEntry>, state_group: i64) -
 
     for sg in stack.iter().rev() {
         state_map.extend(
-            map[&sg]
+            map[sg]
                 .state_map
                 .iter()
                 .map(|((t, s), e)| ((t, s), e.clone())),
@@ -430,4 +432,93 @@ fn collapse_state_maps(map: &BTreeMap<i64, StateGroupEntry>, state_group: i64) -
     }
 
     state_map
+}
+
+// PyO3 INTERFACE STARTS HERE
+
+impl Config {
+    /// Converts string and bool arguments into a Config struct
+    ///
+    /// This function panics if db_url or room_id are empty strings!
+    pub fn new(
+        db_url: String,
+        room_id: String,
+        output_file: Option<String>,
+        max_state_group: Option<i64>,
+        min_saved_rows: Option<i32>,
+        transactions: bool,
+        level_sizes: String,
+    ) -> Result<Config, String> {
+        let mut output: Option<File> = None;
+        if let Some(file) = output_file {
+            output = match File::create(file) {
+                Ok(f) => Some(f),
+                Err(e) => return Err(format!("Unable to create output file: {}", e)),
+            };
+        }
+        let output_file = output;
+
+        let level_sizes: LevelSizes = match level_sizes.parse() {
+            Ok(l_sizes) => l_sizes,
+            Err(e) => return Err(format!("Unable to parse level_sizes: {}", e)),
+        };
+
+        Ok(Config {
+            db_url,
+            output_file,
+            room_id,
+            max_state_group,
+            min_saved_rows,
+            transactions,
+            level_sizes,
+        })
+    }
+}
+
+/// Access point for python code
+///
+/// Default arguments are equivalent to using the command line tool
+/// No default's are provided for db_url or room_id since these arguments
+/// are compulsory (so that new() act's like parse_arguments())
+#[pyfunction(
+    // db_url has no default
+    // room_id  has no default
+    output_file = "None",
+    max_state_group = "None",
+    min_saved_rows = "None",
+    transactions = false,
+    level_sizes = "String::from(\"100,50,25\")"
+)]
+fn run_compression(
+    db_url: String,
+    room_id: String,
+    output_file: Option<String>,
+    max_state_group: Option<i64>,
+    min_saved_rows: Option<i32>,
+    transactions: bool,
+    level_sizes: String,
+) -> PyResult<()> {
+    let config = Config::new(
+        db_url,
+        room_id,
+        output_file,
+        max_state_group,
+        min_saved_rows,
+        transactions,
+        level_sizes,
+    );
+    match config {
+        Err(e) => Err(PyErr::new::<exceptions::PyException, _>(e)),
+        Ok(config) => {
+            run(config);
+            Ok(())
+        }
+    }
+}
+
+/// Python module - "import synapse_compress_state" to use
+#[pymodule]
+fn synapse_compress_state(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(run_compression, m)?)?;
+    Ok(())
 }
