@@ -137,11 +137,11 @@ impl Config {
                 .required(false),
         ).arg(
             Arg::with_name("min_saved_rows")
-            .short("m")
-            .value_name("COUNT")
-            .help("Abort if fewer than COUNT rows would be saved")
-            .takes_value(true)
-            .required(false),
+                .short("m")
+                .value_name("COUNT")
+                .help("Abort if fewer than COUNT rows would be saved")
+                .takes_value(true)
+                .required(false),
         ).arg(
             Arg::with_name("groups_to_compress")
                 .short("n")
