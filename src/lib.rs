@@ -310,16 +310,16 @@ pub fn run(mut config: Config) {
         }
     }
 
-    check_that_maps_match(&state_group_map, &new_state_group_map);
+    check_that_maps_match(&state_group_map, new_state_group_map);
 
     // If we are given an output file, we output the changes as SQL. If the
     // `transactions` argument is set we wrap each change to a state group in a
     // transaction.
 
-    output_sql(&mut config, &state_group_map, &new_state_group_map);
+    output_sql(&mut config, &state_group_map, new_state_group_map);
 
     if config.graphs {
-        graphing::make_graphs(&state_group_map, &new_state_group_map);
+        graphing::make_graphs(&state_group_map, new_state_group_map);
     }
 }
 
