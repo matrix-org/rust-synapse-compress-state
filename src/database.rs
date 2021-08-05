@@ -126,19 +126,18 @@ fn find_max_group(
     groups_to_compress: Option<i64>,
 ) -> i64 {
     // Get list of state_id's in a certain room
-    let sql = r#"
-        SELECT m.id
-        FROM state_groups AS m
-        WHERE m.room_id = $1
-    "#;
+    let sql = "SELECT id FROM state_groups WHERE room_id = $1";
 
     // Adds additional constraint if a groups_to_compress has been specified
     // Then sends query to the datatbase
     let rows = if let (Some(min), Some(count)) = (min_state_group, groups_to_compress) {
         let params: Vec<&dyn ToSql> = vec![&room_id, &min, &count];
-        client.query_raw(format!(r"{} AND m.id > $2 LIMIT $3", sql).as_str(), params)
+        client.query_raw(format!(r"{} AND id > $2 LIMIT $3", sql).as_str(), params)
     } else {
-        client.query_raw(sql, &[room_id])
+        client.query_raw(
+            format!(r"{} ORDER BY id DESC LIMIT 1", sql).as_str(),
+            &[room_id],
+        )
     }
     .unwrap();
 

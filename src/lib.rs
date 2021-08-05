@@ -99,8 +99,6 @@ pub struct Config {
     level_sizes: LevelSizes,
     // Whether or not to wrap each change to an individual state_group in a transaction
     // This is very much reccomended when running the compression when synapse is live
-    // TODO: should this actually be an opt-out flag? it's much worse to need it and
-    //       forget to add it than to not need it and forget to remove it....?
     transactions: bool,
     // Whether or not to output before and after directed graphs (these can be
     // visualised in somthing like Gephi)
