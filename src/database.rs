@@ -109,7 +109,7 @@ pub fn get_data_from_db(
 
         // find state groups not picked up already and add them to the map
         let map = get_missing_from_db(&mut client, &missing_sgs, min_state_group, max_group_found);
-        for (k, v) in map.into_iter() {
+        for (k, v) in map {
             state_group_map.entry(k).or_insert(v);
         }
     }
