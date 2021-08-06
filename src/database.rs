@@ -39,11 +39,14 @@ use super::StateGroupEntry;
 ///                             groups greater than (but not equal) to this number. It
 ///                             also requires groups_to_compress to be specified
 /// * 'groups_to_compress'  -   The number of groups to get from the database before stopping
+/// * `max_state_group`     -   If specified, then only fetch the entries for state
+///                             groups lower than or equal to this number.
 pub fn get_data_from_db(
     db_url: &str,
     room_id: &str,
     min_state_group: Option<i64>,
     groups_to_compress: Option<i64>,
+    max_state_group: Option<i64>,
 ) -> (BTreeMap<i64, StateGroupEntry>, i64) {
     // connect to the database
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
@@ -55,7 +58,13 @@ pub fn get_data_from_db(
     // Search for the group id of the groups_to_compress'th group after min_state_group
     // If this is saved, then the compressor can continue by having min_state_group being
     // set to this maximum
-    let max_group_found = find_max_group(&mut client, room_id, min_state_group, groups_to_compress);
+    let max_group_found = find_max_group(
+        &mut client,
+        room_id,
+        min_state_group,
+        groups_to_compress,
+        max_state_group,
+    );
 
     let mut state_group_map =
         get_initial_data_from_db(&mut client, room_id, min_state_group, max_group_found);
@@ -119,14 +128,20 @@ pub fn get_data_from_db(
 /// * `room_id`             -   The ID of the room in the database
 /// * `min_state_group`     -   The lower limit (non inclusive) of group id's to compress
 /// * 'groups_to_compress'  -   How many groups to compress
+/// * `max_state_group`     -   The upper bound on what this method can return
 fn find_max_group(
     client: &mut Client,
     room_id: &str,
     min_state_group: Option<i64>,
     groups_to_compress: Option<i64>,
+    max_state_group: Option<i64>,
 ) -> i64 {
     // Get list of state_id's in a certain room
-    let sql = "SELECT id FROM state_groups WHERE room_id = $1";
+    let mut sql = "SELECT id FROM state_groups WHERE room_id = $1".to_string();
+
+    if let Some(max) = max_state_group {
+        sql = format!("{} AND id <= {}", sql, max)
+    }
 
     // Adds additional constraint if a groups_to_compress has been specified
     // Then sends query to the datatbase

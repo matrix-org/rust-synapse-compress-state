@@ -95,6 +95,9 @@ pub struct Config {
     // If the compressor results in less than this many rows being saved then
     // it will abort
     min_saved_rows: Option<i32>,
+    // If a max_state_group is specified then only state groups with id's lower
+    // than this number are able to be compressed.
+    max_state_group: Option<i64>,
     // The sizes of the different levels in the new state_group tree being built
     level_sizes: LevelSizes,
     // Whether or not to wrap each change to an individual state_group in a transaction
@@ -128,7 +131,7 @@ impl Config {
                 .required(true),
         ).arg(
             Arg::with_name("min_state_group")
-                .short("s")
+                .short("b")
                 .value_name("MIN_STATE_GROUP")
                 .help("The state group to start processing from (non inclusive)")
                 .takes_value(true)
@@ -153,6 +156,16 @@ impl Config {
                 .value_name("FILE")
                 .help("File to output the changes to in SQL")
                 .takes_value(true),
+        ).arg(
+            Arg::with_name("max_state_group")
+                .short("s")
+                .value_name("MAX_STATE_GROUP")
+                .help("The maximum state group to process up to")
+                .long_help(concat!(
+                    "If a max_state_group is specified then only state groups with id's lower",
+                    " than this number are able to be compressed."))
+                .takes_value(true)
+                .required(false),
         ).arg(
             Arg::with_name("level_sizes")
                 .short("l")
@@ -205,6 +218,10 @@ impl Config {
             .value_of("min_saved_rows")
             .map(|v| v.parse().expect("COUNT must be an integer"));
 
+        let max_state_group = matches
+            .value_of("max_state_group")
+            .map(|s| s.parse().expect("max_state_group must be an integer"));
+
         let level_sizes = value_t!(matches, "level_sizes", LevelSizes)
             .unwrap_or_else(|e| panic!("Unable to parse level_sizes: {}", e));
 
@@ -219,6 +236,7 @@ impl Config {
             min_state_group,
             groups_to_compress,
             min_saved_rows,
+            max_state_group,
             level_sizes,
             transactions,
             graphs,
@@ -250,6 +268,7 @@ pub fn run(mut config: Config) {
         &config.room_id,
         config.min_state_group,
         config.groups_to_compress,
+        config.max_state_group,
     );
     println!("Fetched state groups up to {}", max_group_found);
 
@@ -507,6 +526,7 @@ impl Config {
         min_state_group: Option<i64>,
         groups_to_compress: Option<i64>,
         min_saved_rows: Option<i32>,
+        max_state_group: Option<i64>,
         level_sizes: String,
         transactions: bool,
         graphs: bool,
@@ -532,6 +552,7 @@ impl Config {
             min_state_group,
             groups_to_compress,
             min_saved_rows,
+            max_state_group,
             level_sizes,
             transactions,
             graphs,
@@ -552,6 +573,7 @@ impl Config {
     min_state_group = "None",
     groups_to_compress = "None",
     min_saved_rows = "None",
+    max_state_group = "None",
     level_sizes = "String::from(\"100,50,25\")",
     // have this default to true as is much worse to not have it if you need it
     // than to have it and not need it
@@ -565,6 +587,7 @@ fn run_compression(
     min_state_group: Option<i64>,
     groups_to_compress: Option<i64>,
     min_saved_rows: Option<i32>,
+    max_state_group: Option<i64>,
     level_sizes: String,
     transactions: bool,
     graphs: bool,
@@ -576,6 +599,7 @@ fn run_compression(
         min_state_group,
         groups_to_compress,
         min_saved_rows,
+        max_state_group,
         level_sizes,
         transactions,
         graphs,
