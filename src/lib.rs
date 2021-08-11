@@ -474,7 +474,7 @@ fn check_that_maps_match(
                 println!("State Group: {}", sg);
                 println!("Expected: {:#?}", expected);
                 println!("actual: {:#?}", actual);
-                Err(format!("State for group {} do not match", sg))
+                Err(format!("States for group {} do not match", sg))
             } else {
                 Ok(())
             }
@@ -488,6 +488,10 @@ fn check_that_maps_match(
 
 /// Gets the full state for a given group from the map (of deltas)
 fn collapse_state_maps(map: &BTreeMap<i64, StateGroupEntry>, state_group: i64) -> StateMap<Atom> {
+    if !map.contains_key(&state_group) {
+        panic!("Missing {}", state_group);
+    }
+
     let mut entry = &map[&state_group];
     let mut state_map = StateMap::new();
 
@@ -740,7 +744,7 @@ mod lib_tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Missing")]
     fn collapse_state_maps_panics_if_pred_not_in_map() {
         let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
         let mut prev = Some(14); // note will not be in map
@@ -781,7 +785,7 @@ mod lib_tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Missing")]
     fn check_that_maps_match_panics_if_just_new_map_is_empty() {
         let mut old_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
         let mut prev = None; // note will not be in map
@@ -882,7 +886,7 @@ mod lib_tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "States for group")]
     fn check_that_maps_match_panics_if_same_preds_but_different_deltas() {
         let mut old_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
         let mut prev = None; // note will not be in map
