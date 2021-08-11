@@ -280,7 +280,7 @@ fn get_missing_from_db(
         // Also may well not exist!
         entry.prev_state_group = row.get(1);
         if let Some(min) = min_state_group {
-            if min < id && id > max_group_found {
+            if min < id && id <= max_group_found {
                 entry.in_range = true
             }
         }
