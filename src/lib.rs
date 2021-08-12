@@ -44,6 +44,7 @@ use database::PGEscape;
 /// delta from that previous group (or the full state if no previous group)
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct StateGroupEntry {
+    in_range: bool,
     prev_state_group: Option<i64>,
     state_map: StateMap<Atom>,
 }
@@ -70,13 +71,40 @@ impl FromStr for LevelSizes {
 
 /// Contains configuration information for this run of the compressor
 pub struct Config {
+    // the url for the postgres database
+    // this should be of the form postgres://user:pass@domain/database
     db_url: String,
+    // The file where the transactions are written that would carry out
+    // the compression that get's calculated
     output_file: Option<File>,
+    // The ID of the room who's state is being compressed
     room_id: String,
-    max_state_group: Option<i64>,
+    // The group to start compressing from
+    // N.B. THIS STATE ITSELF IS NOT COMPRESSED!!!
+    // Note there is no state 0 so if want to compress all then can enter 0
+    // (this is the same as leaving it blank)
+    min_state_group: Option<i64>,
+    // How many groups to do the compression on
+    // Note: State groups within the range specified will get compressed
+    // if they are in the state_groups table. States that only appear in
+    // the edges table MIGHT NOT get compressed - it is assumed that these
+    // groups have no associated state. (Note that this was also an assumption
+    // in previous versions of the state compressor, and would only be a problem
+    // if the database was in a bad way already...)
+    groups_to_compress: Option<i64>,
+    // If the compressor results in less than this many rows being saved then
+    // it will abort
     min_saved_rows: Option<i32>,
-    transactions: bool,
+    // If a max_state_group is specified then only state groups with id's lower
+    // than this number are able to be compressed.
+    max_state_group: Option<i64>,
+    // The sizes of the different levels in the new state_group tree being built
     level_sizes: LevelSizes,
+    // Whether or not to wrap each change to an individual state_group in a transaction
+    // This is very much reccomended when running the compression when synapse is live
+    transactions: bool,
+    // Whether or not to output before and after directed graphs (these can be
+    // visualised in somthing like Gephi)
     graphs: bool,
 }
 
@@ -102,17 +130,24 @@ impl Config {
                 .takes_value(true)
                 .required(true),
         ).arg(
-            Arg::with_name("max_state_group")
-                .short("s")
-                .value_name("MAX_STATE_GROUP")
-                .help("The maximum state group to process up to")
+            Arg::with_name("min_state_group")
+                .short("b")
+                .value_name("MIN_STATE_GROUP")
+                .help("The state group to start processing from (non inclusive)")
                 .takes_value(true)
                 .required(false),
         ).arg(
             Arg::with_name("min_saved_rows")
                 .short("m")
                 .value_name("COUNT")
-                .help("Suppress output if fewer than COUNT rows would be saved")
+                .help("Abort if fewer than COUNT rows would be saved")
+                .takes_value(true)
+                .required(false),
+        ).arg(
+            Arg::with_name("groups_to_compress")
+                .short("n")
+                .value_name("GROUPS_TO_COMPRESS")
+                .help("How many groups to load into memory to compress")
                 .takes_value(true)
                 .required(false),
         ).arg(
@@ -122,10 +157,15 @@ impl Config {
                 .help("File to output the changes to in SQL")
                 .takes_value(true),
         ).arg(
-            Arg::with_name("transactions")
-                .short("t")
-                .help("Whether to wrap each state group change in a transaction")
-                .requires("output_file"),
+            Arg::with_name("max_state_group")
+                .short("s")
+                .value_name("MAX_STATE_GROUP")
+                .help("The maximum state group to process up to")
+                .long_help(concat!(
+                    "If a max_state_group is specified then only state groups with id's lower",
+                    " than this number are able to be compressed."))
+                .takes_value(true)
+                .required(false),
         ).arg(
             Arg::with_name("level_sizes")
                 .short("l")
@@ -144,6 +184,11 @@ impl Config {
                 .default_value("100,50,25")
                 .takes_value(true),
         ).arg(
+            Arg::with_name("transactions")
+                .short("t")
+                .help("Whether to wrap each state group change in a transaction")
+                .requires("output_file"),
+        ).arg(
             Arg::with_name("graphs")
                 .short("g")
                 .help("Whether to produce graphs of state groups before and after compression instead of SQL")
@@ -161,18 +206,26 @@ impl Config {
             .value_of("room_id")
             .expect("room_id should be required since no file");
 
-        let max_state_group = matches
-            .value_of("max_state_group")
-            .map(|s| s.parse().expect("max_state_group must be an integer"));
+        let min_state_group = matches
+            .value_of("min_state_group")
+            .map(|s| s.parse().expect("min_state_group must be an integer"));
+
+        let groups_to_compress = matches
+            .value_of("groups_to_compress")
+            .map(|s| s.parse().expect("groups_to_compress must be an integer"));
 
         let min_saved_rows = matches
             .value_of("min_saved_rows")
             .map(|v| v.parse().expect("COUNT must be an integer"));
 
-        let transactions = matches.is_present("transactions");
+        let max_state_group = matches
+            .value_of("max_state_group")
+            .map(|s| s.parse().expect("max_state_group must be an integer"));
 
         let level_sizes = value_t!(matches, "level_sizes", LevelSizes)
             .unwrap_or_else(|e| panic!("Unable to parse level_sizes: {}", e));
+
+        let transactions = matches.is_present("transactions");
 
         let graphs = matches.is_present("graphs");
 
@@ -180,10 +233,12 @@ impl Config {
             db_url: String::from(db_url),
             output_file,
             room_id: String::from(room_id),
-            max_state_group,
+            min_state_group,
+            groups_to_compress,
             min_saved_rows,
-            transactions,
+            max_state_group,
             level_sizes,
+            transactions,
             graphs,
         }
     }
@@ -208,8 +263,14 @@ pub fn run(mut config: Config) {
     // First we need to get the current state groups
     println!("Fetching state from DB for room '{}'...", config.room_id);
 
-    let state_group_map =
-        database::get_data_from_db(&config.db_url, &config.room_id, config.max_state_group);
+    let (state_group_map, max_group_found) = database::get_data_from_db(
+        &config.db_url,
+        &config.room_id,
+        config.min_state_group,
+        config.groups_to_compress,
+        config.max_state_group,
+    );
+    println!("Fetched state groups up to {}", max_group_found);
 
     println!("Number of state groups: {}", state_group_map.len());
 
@@ -225,7 +286,7 @@ pub fn run(mut config: Config) {
 
     let compressor = Compressor::compress(&state_group_map, &config.level_sizes.0);
 
-    let new_state_group_map = compressor.new_state_group_map;
+    let new_state_group_map = &compressor.new_state_group_map;
 
     // Done! Now to print a bunch of stats.
 
@@ -266,16 +327,16 @@ pub fn run(mut config: Config) {
         }
     }
 
-    check_that_maps_match(&state_group_map, &new_state_group_map);
+    check_that_maps_match(&state_group_map, new_state_group_map);
 
     // If we are given an output file, we output the changes as SQL. If the
     // `transactions` argument is set we wrap each change to a state group in a
     // transaction.
 
-    output_sql(&mut config, &state_group_map, &new_state_group_map);
+    output_sql(&mut config, &state_group_map, new_state_group_map);
 
     if config.graphs {
-        graphing::make_graphs(state_group_map, new_state_group_map);
+        graphing::make_graphs(&state_group_map, new_state_group_map);
     }
 }
 
@@ -312,11 +373,11 @@ fn output_sql(
         for (sg, old_entry) in old_map {
             let new_entry = &new_map[sg];
 
+            // N.B. also checks if in_range fields agree
             if old_entry != new_entry {
                 if config.transactions {
                     writeln!(output, "BEGIN;").unwrap();
                 }
-
                 writeln!(
                     output,
                     "DELETE FROM state_group_edges WHERE state_group = {};",
@@ -462,10 +523,12 @@ impl Config {
         db_url: String,
         room_id: String,
         output_file: Option<String>,
-        max_state_group: Option<i64>,
+        min_state_group: Option<i64>,
+        groups_to_compress: Option<i64>,
         min_saved_rows: Option<i32>,
-        transactions: bool,
+        max_state_group: Option<i64>,
         level_sizes: String,
+        transactions: bool,
         graphs: bool,
     ) -> Result<Config, String> {
         let mut output: Option<File> = None;
@@ -486,10 +549,12 @@ impl Config {
             db_url,
             output_file,
             room_id,
-            max_state_group,
+            min_state_group,
+            groups_to_compress,
             min_saved_rows,
-            transactions,
+            max_state_group,
             level_sizes,
+            transactions,
             graphs,
         })
     }
@@ -505,30 +570,38 @@ impl Config {
     // db_url has no default
     // room_id  has no default
     output_file = "None",
-    max_state_group = "None",
+    min_state_group = "None",
+    groups_to_compress = "None",
     min_saved_rows = "None",
-    transactions = false,
+    max_state_group = "None",
     level_sizes = "String::from(\"100,50,25\")",
+    // have this default to true as is much worse to not have it if you need it
+    // than to have it and not need it
+    transactions = true,
     graphs = false
 )]
 fn run_compression(
     db_url: String,
     room_id: String,
     output_file: Option<String>,
-    max_state_group: Option<i64>,
+    min_state_group: Option<i64>,
+    groups_to_compress: Option<i64>,
     min_saved_rows: Option<i32>,
-    transactions: bool,
+    max_state_group: Option<i64>,
     level_sizes: String,
+    transactions: bool,
     graphs: bool,
 ) -> PyResult<()> {
     let config = Config::new(
         db_url,
         room_id,
         output_file,
-        max_state_group,
+        min_state_group,
+        groups_to_compress,
         min_saved_rows,
-        transactions,
+        max_state_group,
         level_sizes,
+        transactions,
         graphs,
     );
     match config {
