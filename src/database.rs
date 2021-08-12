@@ -137,27 +137,29 @@ fn find_max_group(
     max_state_group: Option<i64>,
 ) -> i64 {
     // Get list of state_id's in a certain room
-    let mut sql = "SELECT id FROM state_groups WHERE room_id = $1".to_string();
+    let mut query_chunk_of_ids = "SELECT id FROM state_groups WHERE room_id = $1".to_string();
+    let params: Vec<&(dyn ToSql + Sync)>;
 
     if let Some(max) = max_state_group {
-        sql = format!("{} AND id <= {}", sql, max)
+        query_chunk_of_ids = format!("{} AND id <= {}", query_chunk_of_ids, max)
     }
 
     // Adds additional constraint if a groups_to_compress has been specified
-    // Then sends query to the datatbase
-    let rows = if let (Some(min), Some(count)) = (min_state_group, groups_to_compress) {
-        let params: Vec<&dyn ToSql> = vec![&room_id, &min, &count];
-        client.query_raw(format!(r"{} AND id > $2 LIMIT $3", sql).as_str(), params)
+    if min_state_group.is_some() && groups_to_compress.is_some() {
+        params = vec![&room_id, &min_state_group, &groups_to_compress];
+        query_chunk_of_ids = format!(r"{} AND id > $2 LIMIT $3", query_chunk_of_ids);
     } else {
-        client.query_raw(
-            format!(r"{} ORDER BY id DESC LIMIT 1", sql).as_str(),
-            &[room_id],
-        )
+        params = vec![&room_id];
+        query_chunk_of_ids = format!(r"{} ORDER BY id DESC LIMIT 1", query_chunk_of_ids);
     }
-    .unwrap();
 
-    let final_row = rows.last().unwrap().unwrap();
-    final_row.get(0)
+    let sql_query = format!(
+        "SELECT id FROM ({}) AS ids ORDER BY ids.id DESC LIMIT 1",
+        query_chunk_of_ids
+    );
+    let final_row = client.query(sql_query.as_str(), &params).unwrap();
+
+    final_row.last().unwrap().get(0)
 }
 
 /// Fetch the entries in state_groups_state and immediate predecessors for
