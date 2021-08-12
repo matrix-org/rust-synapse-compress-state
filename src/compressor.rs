@@ -270,7 +270,7 @@ mod level_tests {
     }
 
     #[test]
-    #[should_panic(expected="Tried to add to an already full level")]
+    #[should_panic(expected = "Tried to add to an already full level")]
     fn update_panics_if_adding_and_too_full() {
         let mut l = Level::new(5);
         l.update(1, true);
