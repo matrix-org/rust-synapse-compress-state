@@ -68,7 +68,7 @@ impl Level {
             // If we're referencing the previous head then increment our chain
             // length estimate
             if !self.has_space() {
-                panic!("Tried to add to a already full level");
+                panic!("Tried to add to an already full level");
             }
 
             self.current_chain_length += 1;
@@ -270,7 +270,7 @@ mod level_tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected="Tried to add to an already full level")]
     fn update_panics_if_adding_and_too_full() {
         let mut l = Level::new(5);
         l.update(1, true);
