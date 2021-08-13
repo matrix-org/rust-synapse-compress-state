@@ -528,7 +528,7 @@ mod compressor_tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Can only call `create_new_tree` once")]
     fn create_new_tree_panics_if_run_twice() {
         let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
         let mut prev = None;
