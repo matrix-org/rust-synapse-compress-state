@@ -254,3 +254,6 @@ mod level_tests;
 
 #[cfg(test)]
 mod compressor_tests;
+
+#[cfg(test)]
+mod stats_tests;
