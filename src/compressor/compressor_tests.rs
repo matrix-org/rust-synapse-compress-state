@@ -694,4 +694,3 @@ fn get_delta_returns_snapshot_if_no_prev_possible() {
     assert_eq!(found_delta, expected_delta);
     assert_eq!(found_pred, None);
 }
-
