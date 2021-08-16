@@ -2,5 +2,5 @@
 **/*.rs.bk
 *.data
 *.old
-out.sql
+**.sql
 *.csv
