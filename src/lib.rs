@@ -131,6 +131,10 @@ impl Config {
                 .short("r")
                 .value_name("ROOM_ID")
                 .help("The room to process")
+                .long_help(concat!(
+                    "The room to process. This is the value found in the rooms table of the database",
+                    " not the common name for the room - is should look like: \"!wOlkWNmgkAZFxbTaqj:matrix.org\""
+                ))
                 .takes_value(true)
                 .required(true),
         ).arg(

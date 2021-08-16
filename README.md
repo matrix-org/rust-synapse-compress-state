@@ -69,7 +69,7 @@ The url for connecting to the postgres database. This should be of the form
 "postgresql://username:password@mydomain.com/database"
 
 - -r [ROOM_ID] **Required**  
-The room to process (this is the value found in the `rooms` table of the database
+The room to process. This is the value found in the `rooms` table of the database
 not the common name for the room - is should look like: "!wOlkWNmgkAZFxbTaqj:matrix.org"
 
 - -b [MIN_STATE_GROUP]  
