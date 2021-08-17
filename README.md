@@ -158,3 +158,6 @@ $ docker-compose up -d
 $ cargo test --workspace
 $ docker-compose down
 ```
+
+Note, any output from these tests goes into `compressor_integration_tests/tmp/` so if this
+directory doesn't already exist then you will need to create it.

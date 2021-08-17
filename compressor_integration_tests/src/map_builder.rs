@@ -160,3 +160,58 @@ pub fn compressed_3_3_from_0_to_13_with_state() -> BTreeMap<i64, StateGroupEntry
     }
     expected
 }
+
+/// Generates state map structure that corresponds to edges (with deltas)
+///
+/// Each group i has state:
+//     ('node','is',      i)
+//     ('group',  j, 'seen') - for all j less than i
+pub fn structure_from_edges_with_state(
+    edges: BTreeMap<i64, i64>,
+    start: i64,
+    end: i64,
+) -> BTreeMap<i64, StateGroupEntry> {
+    let mut expected: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
+
+    // Each group i has state:
+    //     ('node','is',      i)
+    //     ('group',  j, 'seen') - for all j less than i
+    for i in start..=end {
+        let prev = edges.get(&i);
+
+        //change from Option<&i64> to Option<i64>
+        let prev = prev.copied();
+
+        // create a blank entry for it
+        let mut entry = StateGroupEntry {
+            in_range: true,
+            prev_state_group: prev,
+            state_map: StateMap::new(),
+        };
+
+        // Add in all state between predecessor and now (non inclusive)
+        if let Some(p) = prev {
+            for j in (p + 1)..i {
+                entry
+                    .state_map
+                    .insert("group", &j.to_string(), "seen".into());
+            }
+        } else {
+            for j in start..i {
+                entry
+                    .state_map
+                    .insert("group", &j.to_string(), "seen".into());
+            }
+        }
+
+        // add in the new state for this state group
+        entry
+            .state_map
+            .insert("group", &i.to_string(), "seen".into());
+        entry.state_map.insert("node", "is", i.to_string().into());
+
+        // put it into the expected map
+        expected.insert(i, entry);
+    }
+    expected
+}

@@ -55,7 +55,8 @@ pub fn get_data_from_db(
     builder.set_verify(SslVerifyMode::NONE);
     let connector = MakeTlsConnector::new(builder.build());
 
-    let mut client = Client::connect(db_url, connector).unwrap();
+    let mut client = Client::connect(db_url, connector)
+        .unwrap_or_else(|e| panic!("Error connecting to the database: {}", e));
 
     // Search for the group id of the groups_to_compress'th group after min_state_group
     // If this is saved, then the compressor can continue by having min_state_group being
