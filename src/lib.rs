@@ -335,7 +335,7 @@ pub fn run(mut config: Config) {
     );
 
     if ratio > 1.0 {
-        println!("This compression would not remove any rows. Aborting.");
+        println!("This compression would not remove any rows. Exiting.");
         return;
     }
 
