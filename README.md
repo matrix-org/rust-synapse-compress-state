@@ -150,6 +150,6 @@ with all of the correct tables. The tests can therefore be run as follows:
 ```
 $ cd compressor_integration_tests/
 $ docker-compose up -d
-$ cargo test --all
+$ cargo test --workspace
 $ docker-compose down
 ```
