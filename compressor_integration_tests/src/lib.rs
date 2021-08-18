@@ -83,7 +83,7 @@ pub fn empty_database() {
         DELETE FROM state_groups_state;
     ";
 
-    client.batch_execute(&sql).unwrap();
+    client.batch_execute(sql).unwrap();
 }
 
 // Safely escape the strings in sql queries
