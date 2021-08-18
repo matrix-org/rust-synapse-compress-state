@@ -10,6 +10,7 @@ pub mod map_builder;
 
 pub static DB_URL: &str = "postgresql://synapse_user:synapse_pass@localhost/synapse";
 
+/// Adds the contents of a state group map to the testing database
 pub fn add_contents_to_database(room_id: &str, state_group_map: &BTreeMap<i64, StateGroupEntry>) {
     // connect to the database
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
@@ -66,6 +67,7 @@ pub fn add_contents_to_database(room_id: &str, state_group_map: &BTreeMap<i64, S
     client.batch_execute(&sql).unwrap();
 }
 
+// Clears the contents of the testing database
 pub fn empty_database() {
     // connect to the database
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
@@ -75,14 +77,16 @@ pub fn empty_database() {
     let mut client = Client::connect(DB_URL, connector).unwrap();
 
     // delete all the contents from all three tables
-    let mut sql = "".to_string();
-    sql.push_str("DELETE FROM state_groups;\n");
-    sql.push_str("DELETE FROM state_group_edges;\n");
-    sql.push_str("DELETE FROM state_groups_state;\n");
+    let sql = r"
+        DELETE FROM state_groups;
+        DELETE FROM state_group_edges;
+        DELETE FROM state_groups_state;
+    ";
 
     client.batch_execute(&sql).unwrap();
 }
 
+// Safely escape the strings in sql queries
 struct PGEscape<'a>(pub &'a str);
 
 impl<'a> fmt::Display for PGEscape<'a> {
