@@ -86,7 +86,7 @@ pub fn empty_database() {
     client.batch_execute(sql).unwrap();
 }
 
-// Safely escape the strings in sql queries
+/// Safely escape the strings in sql queries
 struct PGEscape<'a>(pub &'a str);
 
 impl<'a> fmt::Display for PGEscape<'a> {
