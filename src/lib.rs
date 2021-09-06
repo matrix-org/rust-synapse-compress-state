@@ -522,7 +522,8 @@ fn output_sql(
                 sql_transaction.push_str("COMMIT;")
             }
 
-            write!(output, "{}", sql_transaction).expect("Something went wrong while writing SQL to file");
+            write!(output, "{}", sql_transaction)
+                .expect("Something went wrong while writing SQL to file");
 
             pb.inc(1);
         }
