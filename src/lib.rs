@@ -424,13 +424,7 @@ impl Iterator for DatabaseChanges<'_> {
 
     /// Generate the SQL to change the next state group
     fn next(&mut self) -> Option<Self::Item> {
-        let next_group = self.old_map.next();
-
-        if next_group.is_none() {
-            return None;
-        }
-
-        let (sg, old_entry) = next_group.unwrap();
+        let (sg, old_entry) = self.old_map.next()?;
 
         let new_entry = &self.new_map[sg];
 
