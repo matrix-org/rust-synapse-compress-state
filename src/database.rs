@@ -19,7 +19,7 @@ use postgres_openssl::MakeTlsConnector;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use std::{borrow::Cow, collections::BTreeMap, fmt};
 
-use crate::Config;
+use crate::{Config, DatabaseChanges};
 
 use super::StateGroupEntry;
 
@@ -374,68 +374,15 @@ pub fn send_changes_to_db(
     pb.set_message("state groups");
     pb.enable_steady_tick(100);
 
-    // Go through all groups in the old_map (what is currently in the database)
-    for (sg, old_entry) in old_map {
-        let new_entry = &new_map[sg];
-
-        // Check if the new map has a different entry for this state group
-        // N.B. also checks if in_range fields agree
-        if old_entry != new_entry {
-            // the sql commands that will carry out these changes
-            let mut sql = "".to_string();
-
-            // remove the current edge
-            sql.push_str(&format!(
-                "DELETE FROM state_group_edges WHERE state_group = {};\n",
-                sg
-            ));
-
-            // if the new entry has a predecessor then put that into state_group_edges
-            if let Some(prev_sg) = new_entry.prev_state_group {
-                sql.push_str(&format!("INSERT INTO state_group_edges (state_group, prev_state_group) VALUES ({}, {});\n", sg, prev_sg));
-            }
-
-            // remove the current deltas for this state group
-            sql.push_str(&format!(
-                "DELETE FROM state_groups_state WHERE state_group = {};\n",
-                sg
-            ));
-
-            if !new_entry.state_map.is_empty() {
-                // place all the deltas for the state group in the new map into state_groups_state
-                sql.push_str("INSERT INTO state_groups_state (state_group, room_id, type, state_key, event_id) VALUES\n");
-
-                let mut first = true;
-                for ((t, s), e) in new_entry.state_map.iter() {
-                    // Add a comma at the start if not the first row to be inserted
-                    if first {
-                        sql.push_str("     ");
-                        first = false;
-                    } else {
-                        sql.push_str("    ,");
-                    }
-
-                    // write the row to be insterted of the form:
-                    // (state_group, room_id, type, state_key, event_id)
-                    sql.push_str(&format!(
-                        "({}, {}, {}, {}, {})",
-                        sg,
-                        PGEscape(&config.room_id),
-                        PGEscape(t),
-                        PGEscape(s),
-                        PGEscape(e)
-                    ));
-                }
-                sql.push_str(";\n");
-            }
-
-            // commit this change to the database
-            // N.B. this is a synchronous library so will wait until finished before continueing...
-            // if want to speed up compressor then this might be a good place to start!
-            let mut single_group_transaction = client.transaction().unwrap();
-            single_group_transaction.batch_execute(&sql).unwrap();
-            single_group_transaction.commit().unwrap();
-        }
+    for sql_transaction in DatabaseChanges::new(old_map, new_map, &config.room_id) {
+        // commit this change to the database
+        // N.B. this is a synchronous library so will wait until finished before continueing...
+        // if want to speed up compressor then this might be a good place to start!
+        let mut single_group_transaction = client.transaction().unwrap();
+        single_group_transaction
+            .batch_execute(&sql_transaction)
+            .unwrap();
+        single_group_transaction.commit().unwrap();
 
         pb.inc(1);
     }
