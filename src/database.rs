@@ -19,7 +19,7 @@ use postgres_openssl::MakeTlsConnector;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use std::{borrow::Cow, collections::BTreeMap, fmt};
 
-use crate::{Config, DatabaseChanges};
+use crate::{generate_sql, Config};
 
 use super::StateGroupEntry;
 
@@ -374,7 +374,7 @@ pub fn send_changes_to_db(
     pb.set_message("state groups");
     pb.enable_steady_tick(100);
 
-    for sql_transaction in DatabaseChanges::new(old_map, new_map, &config.room_id) {
+    for sql_transaction in generate_sql(old_map, new_map, &config.room_id) {
         // commit this change to the database
         // N.B. this is a synchronous library so will wait until finished before continueing...
         // if want to speed up compressor then this might be a good place to start!
