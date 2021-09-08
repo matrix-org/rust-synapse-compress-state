@@ -406,7 +406,7 @@ fn generate_sql<'a>(
         // N.B. also checks if in_range fields agree
         if old_entry != new_entry {
             // the sql commands that will carry out these changes
-            let mut sql = "".to_string();
+            let mut sql = String::new();
 
             // remove the current edge
             sql.push_str(&format!(
@@ -453,9 +453,10 @@ fn generate_sql<'a>(
                 sql.push_str(";\n");
             }
 
-            return sql;
+            sql
+        } else {
+            String::new()
         }
-        "".to_string()
     })
 }
 
