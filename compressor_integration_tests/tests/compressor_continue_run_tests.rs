@@ -5,7 +5,7 @@ use compressor_integration_tests::{
     DB_URL,
 };
 use serial_test::serial;
-use synapse_compress_state::continue_run;
+use synapse_compress_state::{continue_run, Level};
 
 // Tests the saving and continuing functionality
 // The compressor should produce the same results when run in one go
@@ -35,7 +35,7 @@ fn continue_run_called_twice_same_as_run() {
 
     // compress in 3,3 level sizes
     // since the compressor hasn't been run before they are empty
-    let level_info = vec![(3, 0, None), (3, 0, None)];
+    let level_info = vec![Level::restore(3, 0, None), Level::restore(3, 0, None)];
 
     // Run the compressor with those settings
     let chunk_stats_1 = continue_run(start, chunk_size, &db_url, &room_id, &level_info);
@@ -50,7 +50,7 @@ fn continue_run_called_twice_same_as_run() {
     // 2  5
     assert_eq!(
         chunk_stats_1.new_level_info,
-        vec![(3, 1, Some(6)), (3, 2, Some(6))]
+        vec![Level::restore(3, 1, Some(6)), Level::restore(3, 2, Some(6))]
     );
 
     let start = 6;

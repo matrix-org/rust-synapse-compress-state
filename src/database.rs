@@ -19,7 +19,7 @@ use postgres_openssl::MakeTlsConnector;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use std::{borrow::Cow, collections::BTreeMap, fmt};
 
-use crate::generate_sql;
+use crate::{compressor::Level, generate_sql};
 
 use super::StateGroupEntry;
 
@@ -91,7 +91,7 @@ pub fn reload_data_from_db(
     room_id: &str,
     min_state_group: Option<i64>,
     groups_to_compress: Option<i64>,
-    level_info: &[(usize, usize, Option<i64>)],
+    level_info: &[Level],
 ) -> (BTreeMap<i64, StateGroupEntry>, i64) {
     // connect to the database
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
@@ -124,12 +124,12 @@ pub fn reload_data_from_db(
 ///
 /// * `client'  -   A Postgres client to make requests with
 /// * `levels'  -   The levels who's heads are being requested
-fn load_level_heads(
-    client: &mut Client,
-    level_info: &[(usize, usize, Option<i64>)],
-) -> BTreeMap<i64, StateGroupEntry> {
+fn load_level_heads(client: &mut Client, level_info: &[Level]) -> BTreeMap<i64, StateGroupEntry> {
     // obtain all of the heads that aren't None from level_info
-    let level_heads: Vec<i64> = level_info.iter().filter_map(|(_, _, head)| *head).collect();
+    let level_heads: Vec<i64> = level_info
+        .iter()
+        .filter_map(|l| (*l).get_current())
+        .collect();
 
     // Query to get id, predecessor and deltas for each state group
     let sql = r#"

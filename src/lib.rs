@@ -37,6 +37,8 @@ mod compressor;
 mod database;
 mod graphing;
 
+pub use compressor::Level;
+
 use compressor::Compressor;
 use database::PGEscape;
 
@@ -514,7 +516,7 @@ fn output_sql(
 /// Information about what compressor did to chunk that it was ran on
 pub struct ChunkStats {
     // The state of each of the levels of the compressor when it stopped
-    pub new_level_info: Vec<(usize, usize, Option<i64>)>,
+    pub new_level_info: Vec<Level>,
     // The last state_group that was compressed
     // (to continue from where the compressor stopped, call with this as 'start' value)
     pub last_compressed_group: i64,
@@ -531,7 +533,7 @@ pub fn continue_run(
     chunk_size: i64,
     db_url: &str,
     room_id: &str,
-    level_info: &[(usize, usize, Option<i64>)],
+    level_info: &[Level],
 ) -> ChunkStats {
     // First we need to get the current state groups
     let (state_group_map, max_group_found) =

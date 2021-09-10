@@ -36,8 +36,8 @@ use string_cache::DefaultAtom as Atom;
 use super::{collapse_state_maps, StateGroupEntry};
 
 /// Holds information about a particular level.
-#[derive(Debug)]
-struct Level {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Level {
     /// The maximum size this level is allowed to be
     max_length: usize,
     /// The (approximate) current chain length of this level. This is equivalent
@@ -70,7 +70,7 @@ impl Level {
     /// that given state group will (probably) reference the previous head.
     ///
     /// Panics if `delta` is true and the level is already full.
-    pub fn update(&mut self, current: i64, delta: bool) {
+    fn update(&mut self, current: i64, delta: bool) {
         self.current = Some(current);
 
         if delta {
@@ -142,13 +142,12 @@ impl<'a> Compressor<'a> {
     /// in which case the levels heads are also known
     pub fn compress_from_save(
         original_state_map: &'a BTreeMap<i64, StateGroupEntry>,
-        level_info: &[(usize, usize, Option<i64>)],
+        // level_info: &[(usize, usize, Option<i64>)],
+        level_info: &[Level],
     ) -> Compressor<'a> {
         let levels = level_info
             .iter()
-            .map(|(max_length, curr_length, curr_head)| {
-                Level::restore(*max_length, *curr_length, *curr_head)
-            })
+            .map(|l| Level::restore((*l).max_length, (*l).current_chain_length, (*l).current))
             .collect();
 
         let mut compressor = Compressor {
@@ -163,11 +162,8 @@ impl<'a> Compressor<'a> {
     }
 
     /// Returns all the state required to save the compressor so it can be continued later
-    pub fn get_level_info(&self) -> Vec<(usize, usize, Option<i64>)> {
-        self.levels
-            .iter()
-            .map(|l| (l.max_length, l.current_chain_length, l.current))
-            .collect()
+    pub fn get_level_info(&self) -> Vec<Level> {
+        self.levels.clone()
     }
 
     /// Actually runs the compression algorithm
