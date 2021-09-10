@@ -129,16 +129,7 @@ fn load_level_heads(
     level_info: &[(usize, usize, Option<i64>)],
 ) -> BTreeMap<i64, StateGroupEntry> {
     // obtain all of the heads that aren't None from level_info
-    let level_heads: Vec<i64> = level_info
-        .iter()
-        .map(|(_, _, head)| {
-            if let Some(c) = *head {
-                return c;
-            }
-            -1
-        })
-        .filter(|c| *c > 0)
-        .collect();
+    let level_heads: Vec<i64> = level_info.iter().filter_map(|(_, _, head)| *head).collect();
 
     // Query to get id, predecessor and deltas for each state group
     let sql = r#"
