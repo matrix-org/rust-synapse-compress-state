@@ -36,8 +36,8 @@ use string_cache::DefaultAtom as Atom;
 use super::{collapse_state_maps, StateGroupEntry};
 
 /// Holds information about a particular level.
-#[derive(Debug)]
-struct Level {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Level {
     /// The maximum size this level is allowed to be
     max_length: usize,
     /// The (approximate) current chain length of this level. This is equivalent
@@ -57,11 +57,20 @@ impl Level {
         }
     }
 
+    /// Creates a new level from stored state
+    pub fn restore(max_length: usize, current_chain_length: usize, current: Option<i64>) -> Level {
+        Level {
+            max_length,
+            current_chain_length,
+            current,
+        }
+    }
+
     /// Update the current head of this level. If delta is true then it means
     /// that given state group will (probably) reference the previous head.
     ///
     /// Panics if `delta` is true and the level is already full.
-    pub fn update(&mut self, current: i64, delta: bool) {
+    fn update(&mut self, current: i64, delta: bool) {
         self.current = Some(current);
 
         if delta {
@@ -126,6 +135,35 @@ impl<'a> Compressor<'a> {
         compressor.create_new_tree();
 
         compressor
+    }
+
+    /// Creates a compressor and runs the compression algorithm.
+    /// used when restoring compressor state from a previous run
+    /// in which case the levels heads are also known
+    pub fn compress_from_save(
+        original_state_map: &'a BTreeMap<i64, StateGroupEntry>,
+        // level_info: &[(usize, usize, Option<i64>)],
+        level_info: &[Level],
+    ) -> Compressor<'a> {
+        let levels = level_info
+            .iter()
+            .map(|l| Level::restore((*l).max_length, (*l).current_chain_length, (*l).current))
+            .collect();
+
+        let mut compressor = Compressor {
+            original_state_map,
+            new_state_group_map: BTreeMap::new(),
+            levels,
+            stats: Stats::default(),
+        };
+
+        compressor.create_new_tree();
+        compressor
+    }
+
+    /// Returns all the state required to save the compressor so it can be continued later
+    pub fn get_level_info(&self) -> Vec<Level> {
+        self.levels.clone()
     }
 
     /// Actually runs the compression algorithm

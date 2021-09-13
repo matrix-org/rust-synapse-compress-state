@@ -37,6 +37,8 @@ mod compressor;
 mod database;
 mod graphing;
 
+pub use compressor::Level;
+
 use compressor::Compressor;
 use database::PGEscape;
 
@@ -373,7 +375,12 @@ pub fn run(mut config: Config) {
 
     // If commit_changes is set then commit the changes to the database
     if config.commit_changes {
-        database::send_changes_to_db(&config, &state_group_map, new_state_group_map);
+        database::send_changes_to_db(
+            &config.db_url,
+            &config.room_id,
+            &state_group_map,
+            new_state_group_map,
+        );
     }
 
     if config.graphs {
@@ -504,6 +511,89 @@ fn output_sql(
     }
 
     pb.finish();
+}
+
+/// Information about what compressor did to chunk that it was ran on
+pub struct ChunkStats {
+    // The state of each of the levels of the compressor when it stopped
+    pub new_level_info: Vec<Level>,
+    // The last state_group that was compressed
+    // (to continue from where the compressor stopped, call with this as 'start' value)
+    pub last_compressed_group: i64,
+    // The number of rows in the database for the current chunk of state_groups before compressing
+    pub original_num_rows: usize,
+    // The number of rows in the database for the current chunk of state_groups after compressing
+    pub new_num_rows: usize,
+    // Whether or not the changes were commited to the database
+    pub commited: bool,
+}
+
+pub fn continue_run(
+    start: i64,
+    chunk_size: i64,
+    db_url: &str,
+    room_id: &str,
+    level_info: &[Level],
+) -> ChunkStats {
+    // First we need to get the current state groups
+    let (state_group_map, max_group_found) =
+        database::reload_data_from_db(db_url, room_id, Some(start), Some(chunk_size), level_info);
+
+    let original_num_rows = state_group_map.iter().map(|(_, v)| v.state_map.len()).sum();
+
+    // Now we actually call the compression algorithm.
+    let compressor = Compressor::compress_from_save(&state_group_map, level_info);
+    let new_state_group_map = &compressor.new_state_group_map;
+
+    // Done! Now to print a bunch of stats.
+    let new_num_rows = new_state_group_map
+        .iter()
+        .fold(0, |acc, (_, v)| acc + v.state_map.len());
+
+    let ratio = (new_num_rows as f64) / (original_num_rows as f64);
+
+    println!(
+        "Number of rows after compression: {} ({:.2}%)",
+        new_num_rows,
+        ratio * 100.
+    );
+
+    println!("Compression Statistics:");
+    println!(
+        "  Number of forced resets due to lacking prev: {}",
+        compressor.stats.resets_no_suitable_prev
+    );
+    println!(
+        "  Number of compressed rows caused by the above: {}",
+        compressor.stats.resets_no_suitable_prev_size
+    );
+    println!(
+        "  Number of state groups changed: {}",
+        compressor.stats.state_groups_changed
+    );
+
+    if ratio > 1.0 {
+        println!("This compression would not remove any rows. Aborting.");
+        return ChunkStats {
+            new_level_info: compressor.get_level_info(),
+            last_compressed_group: max_group_found,
+            original_num_rows,
+            new_num_rows,
+            commited: false,
+        };
+    }
+
+    check_that_maps_match(&state_group_map, new_state_group_map);
+
+    database::send_changes_to_db(db_url, room_id, &state_group_map, new_state_group_map);
+
+    ChunkStats {
+        new_level_info: compressor.get_level_info(),
+        last_compressed_group: max_group_found,
+        original_num_rows,
+        new_num_rows,
+        commited: true,
+    }
 }
 
 /// Compares two sets of state groups
