@@ -515,6 +515,11 @@ pub fn send_changes_to_db(
     pb.enable_steady_tick(100);
 
     for sql_transaction in generate_sql(old_map, new_map, room_id) {
+        if sql_transaction.is_empty() {
+            pb.inc(1);
+            continue;
+        }
+
         // commit this change to the database
         // N.B. this is a synchronous library so will wait until finished before continueing...
         // if want to speed up compressor then this might be a good place to start!
