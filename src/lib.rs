@@ -298,7 +298,9 @@ pub fn run(mut config: Config) {
         config.min_state_group,
         config.groups_to_compress,
         config.max_state_group,
-    );
+    )
+    .unwrap_or_else(|| panic!("No state groups found within this range"));
+
     println!("Fetched state groups up to {}", max_group_found);
 
     println!("Number of state groups: {}", state_group_map.len());
@@ -510,6 +512,7 @@ fn output_sql(
 }
 
 /// Information about what compressor did to chunk that it was ran on
+#[derive(Debug)]
 pub struct ChunkStats {
     // The state of each of the levels of the compressor when it stopped
     pub new_level_info: Vec<Level>,
@@ -524,16 +527,18 @@ pub struct ChunkStats {
     pub commited: bool,
 }
 
+/// Loads a compressor state, runs it on a room and then returns info on how it got on
 pub fn continue_run(
-    start: i64,
+    start: Option<i64>,
     chunk_size: i64,
     db_url: &str,
     room_id: &str,
     level_info: &[Level],
-) -> ChunkStats {
+) -> Option<ChunkStats> {
     // First we need to get the current state groups
+    // If nothing was found then return None
     let (state_group_map, max_group_found) =
-        database::reload_data_from_db(db_url, room_id, Some(start), Some(chunk_size), level_info);
+        database::reload_data_from_db(db_url, room_id, start, Some(chunk_size), level_info)?;
 
     let original_num_rows = state_group_map.iter().map(|(_, v)| v.state_map.len()).sum();
 
@@ -548,48 +553,28 @@ pub fn continue_run(
 
     let ratio = (new_num_rows as f64) / (original_num_rows as f64);
 
-    println!(
-        "Number of rows after compression: {} ({:.2}%)",
-        new_num_rows,
-        ratio * 100.
-    );
-
-    println!("Compression Statistics:");
-    println!(
-        "  Number of forced resets due to lacking prev: {}",
-        compressor.stats.resets_no_suitable_prev
-    );
-    println!(
-        "  Number of compressed rows caused by the above: {}",
-        compressor.stats.resets_no_suitable_prev_size
-    );
-    println!(
-        "  Number of state groups changed: {}",
-        compressor.stats.state_groups_changed
-    );
-
     if ratio > 1.0 {
         println!("This compression would not remove any rows. Aborting.");
-        return ChunkStats {
+        return Some(ChunkStats {
             new_level_info: compressor.get_level_info(),
             last_compressed_group: max_group_found,
             original_num_rows,
             new_num_rows,
             commited: false,
-        };
+        });
     }
 
     check_that_maps_match(&state_group_map, new_state_group_map);
 
     database::send_changes_to_db(db_url, room_id, &state_group_map, new_state_group_map);
 
-    ChunkStats {
+    Some(ChunkStats {
         new_level_info: compressor.get_level_info(),
         last_compressed_group: max_group_found,
         original_num_rows,
         new_num_rows,
         commited: true,
-    }
+    })
 }
 
 /// Compares two sets of state groups

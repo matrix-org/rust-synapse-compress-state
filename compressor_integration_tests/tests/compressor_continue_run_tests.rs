@@ -30,7 +30,7 @@ fn continue_run_called_twice_same_as_run() {
     let room_id = "room1".to_string();
 
     // will run the compression in two batches
-    let start = -1;
+    let start = None;
     let chunk_size = 7;
 
     // compress in 3,3 level sizes
@@ -38,7 +38,7 @@ fn continue_run_called_twice_same_as_run() {
     let level_info = vec![Level::restore(3, 0, None), Level::restore(3, 0, None)];
 
     // Run the compressor with those settings
-    let chunk_stats_1 = continue_run(start, chunk_size, &db_url, &room_id, &level_info);
+    let chunk_stats_1 = continue_run(start, chunk_size, &db_url, &room_id, &level_info).unwrap();
 
     // Assert that it stopped at 6 (i.e. after the 7 groups 0...6)
     assert_eq!(chunk_stats_1.last_compressed_group, 6);
@@ -53,12 +53,12 @@ fn continue_run_called_twice_same_as_run() {
         vec![Level::restore(3, 1, Some(6)), Level::restore(3, 2, Some(6))]
     );
 
-    let start = 6;
+    let start = Some(6);
     let chunk_size = 7;
     let level_info = chunk_stats_1.new_level_info.clone();
 
     // Run the compressor with those settings
-    let chunk_stats_2 = continue_run(start, chunk_size, &db_url, &room_id, &level_info);
+    let chunk_stats_2 = continue_run(start, chunk_size, &db_url, &room_id, &level_info).unwrap();
 
     // Assert that it stopped at 7
     assert_eq!(chunk_stats_2.last_compressed_group, 13);
