@@ -7,7 +7,7 @@ use compressor_integration_tests::{
         compressed_3_3_from_0_to_13_with_state, line_segments_with_state, line_with_state,
         structure_from_edges_with_state,
     },
-    DB_URL,
+    setup_logger, DB_URL,
 };
 use serial_test::serial;
 use synapse_compress_state::{run, Config};
@@ -22,6 +22,7 @@ use synapse_compress_state::{run, Config};
 #[test]
 #[serial(db)]
 fn run_succeeds_without_crashing() {
+    setup_logger();
     // This starts with the following structure
     //
     // 0-1-2-3-4-5-6-7-8-9-10-11-12-13
@@ -67,6 +68,7 @@ fn run_succeeds_without_crashing() {
 #[test]
 #[serial(db)]
 fn changes_commited_if_no_min_saved_rows() {
+    setup_logger();
     // This starts with the following structure
     //
     // 0-1-2 3-4-5 6-7-8 9-10-11 12-13
@@ -132,6 +134,7 @@ fn changes_commited_if_no_min_saved_rows() {
 #[test]
 #[serial(db)]
 fn changes_commited_if_min_saved_rows_exceeded() {
+    setup_logger();
     // This starts with the following structure
     //
     // 0-1-2 3-4-5 6-7-8 9-10-11 12-13
@@ -197,6 +200,7 @@ fn changes_commited_if_min_saved_rows_exceeded() {
 #[test]
 #[serial(db)]
 fn changes_not_commited_if_fewer_than_min_saved_rows() {
+    setup_logger();
     // This starts with the following structure
     //
     // 0-1-2 3-4-5 6-7-8 9-10-11 12-13
@@ -263,6 +267,7 @@ fn changes_not_commited_if_fewer_than_min_saved_rows() {
 #[test]
 #[should_panic(expected = "Error connecting to the database:")]
 fn run_panics_if_invalid_db_url() {
+    setup_logger();
     // set up the config options
     let db_url = "thisIsAnInvalidURL".to_string();
     let room_id = "room1".to_string();
@@ -298,6 +303,7 @@ fn run_panics_if_invalid_db_url() {
 #[test]
 #[serial(db)]
 fn run_only_affects_given_room_id() {
+    setup_logger();
     // build room1 stuff up
     // This starts with the following structure
     //
@@ -374,6 +380,7 @@ fn run_only_affects_given_room_id() {
 #[test]
 #[serial(db)]
 fn run_respects_groups_to_compress() {
+    setup_logger();
     // This starts with the following structure
     //
     // 0-1-2 3-4-5 6-7-8 9-10-11 12-13
@@ -456,6 +463,7 @@ fn run_respects_groups_to_compress() {
 #[test]
 #[serial(db)]
 fn run_is_idempotent_when_run_on_whole_room() {
+    setup_logger();
     // This starts with the following structure
     //
     // 0-1-2 3-4-5 6-7-8 9-10-11 12-13

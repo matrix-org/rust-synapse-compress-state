@@ -2,13 +2,14 @@ use auto_compressor::state_saving::{
     connect_to_database, create_tables_if_needed, read_room_compressor_state,
     write_room_compressor_state,
 };
-use compressor_integration_tests::{clear_compressor_state, DB_URL};
+use compressor_integration_tests::{clear_compressor_state, setup_logger, DB_URL};
 use serial_test::serial;
 use synapse_compress_state::Level;
 
 #[test]
 #[serial(db)]
 fn write_then_read_state_gives_correct_results() {
+    setup_logger();
     let mut client = connect_to_database(DB_URL).unwrap();
     create_tables_if_needed(&mut client).unwrap();
     clear_compressor_state();

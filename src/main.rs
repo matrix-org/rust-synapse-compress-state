@@ -20,8 +20,27 @@
 #[global_allocator]
 static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
+use log::LevelFilter;
+use std::env;
+use std::io::Write;
+
 use synapse_compress_state as comp_state;
 
 fn main() {
+    // setup the logger
+    // The default can be overwritten with COMPRESSOR_LOG_LEVEL
+    // see the README for more information <---- TODO
+    if env::var("COMPRESSOR_LOG_LEVEL").is_err() {
+        let mut log_builder = env_logger::builder();
+        // Only output the log message (and not the prefixed timestamp etc.)
+        log_builder.format(|buf, record| writeln!(buf, "{}", record.args()));
+        // By default print all of the debugging messages from this library
+        log_builder.filter_module("synapse_compress_state", LevelFilter::Debug);
+        log_builder.init();
+    } else {
+        // If COMPRESSOR_LOG_LEVEL was set then use that
+        env_logger::Builder::from_env("COMPRESSOR_LOG_LEVEL").init();
+    }
+
     comp_state::run(comp_state::Config::parse_arguments());
 }
