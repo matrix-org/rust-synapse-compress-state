@@ -249,3 +249,44 @@ pub fn write_room_compressor_state(
 
     Ok(())
 }
+
+/// Returns the top [number] rooms with the most uncompressed state
+///
+/// Uncompressed state is measured by number of rows in the state_groups_state
+/// table due to state groups with id's lower than where the compressor has gotten
+/// up to (i.e. the last_compressed value in the state_compressor_progress
+/// table).
+///
+/// # Arguments
+///
+/// * `client`    -   A postgres client used to send the requests to the database
+/// * `number`    -   How many groups to return
+pub fn get_rooms_with_most_rows_to_compress(
+    client: &mut Client,
+    number: i64,
+) -> Result<Option<Vec<(String, i64)>>> {
+    let get_biggest_rooms = r#"
+        SELECT s.room_id, count(*) AS num_rows
+        FROM state_groups_state AS s
+        LEFT JOIN state_compressor_progress AS p 
+            ON s.room_id = p.room_id
+        WHERE s.state_group > p.last_compressed 
+            OR p.last_compressed IS NULL
+        GROUP BY s.room_id
+        ORDER BY num_rows DESC
+        LIMIT $1
+    "#;
+
+    let rooms = client.query(get_biggest_rooms, &[&number])?;
+
+    if rooms.is_empty() {
+        return Ok(None);
+    }
+
+    let rows_to_compress = rooms
+        .iter()
+        .map(|r| (r.get::<_, String>(0), r.get::<_, i64>(1)))
+        .collect();
+
+    Ok(Some(rows_to_compress))
+}
