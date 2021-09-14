@@ -69,7 +69,7 @@ pub fn add_contents_to_database(room_id: &str, state_group_map: &BTreeMap<i64, S
     client.batch_execute(&sql).unwrap();
 }
 
-// Clears the contents of the testing database
+/// Clears the contents of the testing database
 pub fn empty_database() {
     // connect to the database
     let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
@@ -298,6 +298,24 @@ pub fn database_structure_matches_map(state_group_map: &BTreeMap<i64, StateGroup
         }
     }
     true
+}
+
+/// Clears the compressor state from the database
+pub fn clear_compressor_state() {
+    // connect to the database
+    let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
+    builder.set_verify(SslVerifyMode::NONE);
+    let connector = MakeTlsConnector::new(builder.build());
+
+    let mut client = Client::connect(DB_URL, connector).unwrap();
+
+    // delete all the contents from the state compressor tables
+    let sql = r"
+        DELETE FROM state_compressor_state;
+        DELETE FROM state_compressor_progress;
+    ";
+
+    client.batch_execute(sql).unwrap();
 }
 
 #[test]
