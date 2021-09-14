@@ -677,11 +677,11 @@ fn get_delta_returns_snapshot_if_no_prev_possible() {
     let mut levels_iter = compressor.levels.iter_mut();
 
     let l1 = levels_iter.next().unwrap();
-    l1.current = Some(3);
+    l1.head = Some(3);
     l1.current_chain_length = 1;
 
     let l2 = levels_iter.next().unwrap();
-    l2.current = Some(3);
+    l2.head = Some(3);
     l2.current_chain_length = 1;
 
     // Now try and find delta for 4 with 3 as pred
