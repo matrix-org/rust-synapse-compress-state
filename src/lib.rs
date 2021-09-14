@@ -22,10 +22,6 @@
 
 use pyo3::{exceptions, prelude::*};
 
-#[cfg(feature = "jemalloc")]
-#[global_allocator]
-static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
-
 use clap::{crate_authors, crate_description, crate_name, crate_version, value_t, App, Arg};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
