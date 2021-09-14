@@ -16,6 +16,10 @@
 //! Synapse instance's database. Specifically, it aims to reduce the number of
 //! rows that a given room takes up in the `state_groups_state` table.
 
+#[cfg(feature = "jemalloc")]
+#[global_allocator]
+static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
+
 use synapse_compress_state as comp_state;
 
 fn main() {
