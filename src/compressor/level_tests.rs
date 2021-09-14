@@ -5,7 +5,7 @@ fn new_produces_empty_level() {
     let l = Level::new(15);
     assert_eq!(l.max_length, 15);
     assert_eq!(l.current_chain_length, 0);
-    assert_eq!(l.current, None);
+    assert_eq!(l.head, None);
 }
 
 #[test]
@@ -14,7 +14,7 @@ fn update_adds_to_non_full_level() {
     l.update(7, true);
     assert_eq!(l.max_length, 10);
     assert_eq!(l.current_chain_length, 1);
-    assert_eq!(l.current, Some(7));
+    assert_eq!(l.head, Some(7));
 }
 
 #[test]
@@ -40,15 +40,15 @@ fn update_resets_level_correctly() {
     l.update(6, false);
     assert_eq!(l.max_length, 5);
     assert_eq!(l.current_chain_length, 1);
-    assert_eq!(l.current, Some(6));
+    assert_eq!(l.head, Some(6));
 }
 
 #[test]
-fn get_current_returns_current() {
+fn get_head_returns_head() {
     let mut l = Level::new(5);
-    assert_eq!(l.get_current(), None);
+    assert_eq!(l.get_head(), None);
     l.update(23, true);
-    assert_eq!(l.get_current(), Some(23));
+    assert_eq!(l.get_head(), Some(23));
 }
 
 #[test]

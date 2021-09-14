@@ -44,7 +44,7 @@ pub struct Level {
     /// to recursively following `current`
     current_chain_length: usize,
     /// The head of this level
-    current: Option<i64>,
+    head: Option<i64>,
 }
 
 impl Level {
@@ -53,16 +53,16 @@ impl Level {
         Level {
             max_length,
             current_chain_length: 0,
-            current: None,
+            head: None,
         }
     }
 
     /// Creates a new level from stored state
-    pub fn restore(max_length: usize, current_chain_length: usize, current: Option<i64>) -> Level {
+    pub fn restore(max_length: usize, current_chain_length: usize, head: Option<i64>) -> Level {
         Level {
             max_length,
             current_chain_length,
-            current,
+            head,
         }
     }
 
@@ -70,8 +70,8 @@ impl Level {
     /// that given state group will (probably) reference the previous head.
     ///
     /// Panics if `delta` is true and the level is already full.
-    fn update(&mut self, current: i64, delta: bool) {
-        self.current = Some(current);
+    fn update(&mut self, new_head: i64, delta: bool) {
+        self.head = Some(new_head);
 
         if delta {
             // If we're referencing the previous head then increment our chain
@@ -87,9 +87,19 @@ impl Level {
         }
     }
 
+    /// Get the max length of the level
+    pub fn get_max_length(&self) -> usize {
+        self.max_length
+    }
+
+    /// Get the current length of the level
+    pub fn get_current_length(&self) -> usize {
+        self.current_chain_length
+    }
+
     /// Get the current head of the level
-    pub fn get_current(&self) -> Option<i64> {
-        self.current
+    pub fn get_head(&self) -> Option<i64> {
+        self.head
     }
 
     /// Whether there is space in the current chain at this level. If not then a
@@ -142,12 +152,11 @@ impl<'a> Compressor<'a> {
     /// in which case the levels heads are also known
     pub fn compress_from_save(
         original_state_map: &'a BTreeMap<i64, StateGroupEntry>,
-        // level_info: &[(usize, usize, Option<i64>)],
         level_info: &[Level],
     ) -> Compressor<'a> {
         let levels = level_info
             .iter()
-            .map(|l| Level::restore((*l).max_length, (*l).current_chain_length, (*l).current))
+            .map(|l| Level::restore((*l).max_length, (*l).current_chain_length, (*l).head))
             .collect();
 
         let mut compressor = Compressor {
@@ -200,7 +209,7 @@ impl<'a> Compressor<'a> {
             let mut prev_state_group = None;
             for level in &mut self.levels {
                 if level.has_space() {
-                    prev_state_group = level.get_current();
+                    prev_state_group = level.get_head();
                     level.update(state_group, true);
                     break;
                 } else {

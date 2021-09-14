@@ -126,10 +126,7 @@ pub fn reload_data_from_db(
 /// * `levels'  -   The levels who's heads are being requested
 fn load_level_heads(client: &mut Client, level_info: &[Level]) -> BTreeMap<i64, StateGroupEntry> {
     // obtain all of the heads that aren't None from level_info
-    let level_heads: Vec<i64> = level_info
-        .iter()
-        .filter_map(|l| (*l).get_current())
-        .collect();
+    let level_heads: Vec<i64> = level_info.iter().filter_map(|l| (*l).get_head()).collect();
 
     // Query to get id, predecessor and deltas for each state group
     let sql = r#"
