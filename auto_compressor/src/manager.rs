@@ -1,0 +1,128 @@
+// This module contains functions that carry out diffferent types
+// of compression on the database.
+
+use crate::state_saving::{
+    connect_to_database, read_room_compressor_state, write_room_compressor_state,
+};
+use anyhow::{bail, Result};
+use log::{debug, warn};
+use synapse_compress_state::{continue_run, ChunkStats, Level};
+
+/// Runs the compressor on a chunk of the room
+///
+/// Returns `Some(chunk_stats)` if the compressor has progressed
+/// and `None` if it had already got to the end of the room
+///
+/// # Arguments
+///
+/// * `db_url`          -   The URL of the postgres database that synapse is using.
+///                         e.g. "postgresql://user:password@domain.com/synapse"
+///
+/// * `room_id`         -   The id of the room to run the compressor on. Note this
+///                         is the id as stored in the database and will look like
+///                         "!aasdfasdfafdsdsa:matrix.org" instead of the common
+///                         name
+///
+/// * `chunk_size`      -   The number of state_groups to work on. All of the entries
+///                         from state_groups_state are requested from the database
+///                         for state groups that are worked on. Therefore small
+///                         chunk sizes may be needed on machines with low memory.
+///                         (Note: if the compressor fails to find space savings on the
+///                         chunk as a whole (which may well happen in rooms with lots
+///                         of backfill in) then the entire chunk is skipped.)
+///
+/// * `default_levels`  -   If the compressor has never been run on this room before
+///                         then we need to provide the compressor with some information
+///                         on what sort of compression structure we want. The default that
+///                         the library suggests is `vec![Level::new(100), Level::new(50), Level::new(25)]`
+pub fn run_compressor_on_room_chunk(
+    db_url: &str,
+    room_id: &str,
+    chunk_size: i64,
+    default_levels: &[Level],
+) -> Result<Option<ChunkStats>> {
+    // connect to the database
+    let mut client = match connect_to_database(db_url) {
+        Ok(c) => c,
+        Err(e) => bail!("Error while connecting to {}: {}", db_url, e),
+    };
+
+    // Access the database to find out where the compressor last got up to
+    let retrieved_state = match read_room_compressor_state(&mut client, room_id) {
+        Ok(s) => s,
+        Err(e) => bail!(
+            "Error while reading compressor state for room {}: {}",
+            room_id,
+            e
+        ),
+    };
+
+    // If the database didn't contain any information, then use the default state
+    let (start, level_info) = match retrieved_state {
+        Some((s, l)) => (Some(s), l),
+        None => (None, default_levels.to_vec()),
+    };
+
+    // run the compressor on this chunk
+    let option_chunk_stats = continue_run(start, chunk_size, db_url, room_id, &level_info);
+
+    if option_chunk_stats.is_none() {
+        debug!("No work to do on this room...");
+        return Ok(None);
+    }
+
+    // Ok to unwrap because have checked that it's not None
+    let chunk_stats = option_chunk_stats.unwrap();
+
+    debug!("{:?}", chunk_stats);
+
+    // Check to see whether the compressor sent its changes to the database
+    if !chunk_stats.commited {
+        if chunk_stats.new_num_rows - chunk_stats.original_num_rows != 0 {
+            warn!(
+                "The compressor tried to increase the number of rows in {} between {:?} and {}. Skipping...",
+                room_id, start, chunk_stats.last_compressed_group,
+            );
+        }
+
+        // Skip over the failed chunk and set the level info to the default (empty) state
+        let write_result = write_room_compressor_state(
+            &mut client,
+            room_id,
+            default_levels,
+            chunk_stats.last_compressed_group,
+        );
+
+        if let Err(e) = write_result {
+            bail!(
+                "Error when skipping chunk in room {} between {:?} and {}: {}",
+                room_id,
+                start,
+                chunk_stats.last_compressed_group,
+                e,
+            )
+        }
+
+        return Ok(Some(chunk_stats));
+    }
+
+    // Save where we got up to after this successful commit
+    let write_result = write_room_compressor_state(
+        &mut client,
+        room_id,
+        &chunk_stats.new_level_info,
+        chunk_stats.last_compressed_group,
+    );
+
+    if let Err(e) = write_result {
+        bail!(
+            "Error when saving state after compressing chunk in room {} between {:?} and {}: {}",
+            room_id,
+            start,
+            chunk_stats.last_compressed_group,
+            e,
+        )
+    }
+
+    Ok(Some(chunk_stats))
+}

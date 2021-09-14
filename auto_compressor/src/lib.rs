@@ -6,4 +6,5 @@
 //! to the database and uses these to enable it to incrementally work
 //! on space reductions
 
+pub mod manager;
 pub mod state_saving;
