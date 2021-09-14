@@ -12,7 +12,7 @@ openssl = "0.10.32"
 postgres = "0.19.0"
 postgres-openssl = "0.5.0"
 rand = "0.8.0"
-synapse_compress_state = { path = "../" }
+synapse_compress_state = { path = "../", features = ["no-progress-bars"] }
 auto_compressor = { path = "../auto_compressor/" }
 env_logger = "0.9.0"
 log = "0.4.14"
