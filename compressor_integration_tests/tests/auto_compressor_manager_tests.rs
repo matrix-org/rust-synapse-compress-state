@@ -1,17 +1,15 @@
 use auto_compressor::{
-    manager::{run_compressor_on_room_chunk},
+    manager::run_compressor_on_room_chunk,
     state_saving::{connect_to_database, create_tables_if_needed},
 };
 use compressor_integration_tests::{
     add_contents_to_database, clear_compressor_state, database_collapsed_states_match_map,
     database_structure_matches_map, empty_database,
-    map_builder::{
-        compressed_3_3_from_0_to_13_with_state, line_segments_with_state,
-    },
+    map_builder::{compressed_3_3_from_0_to_13_with_state, line_segments_with_state},
     setup_logger, DB_URL,
 };
 use serial_test::serial;
-use synapse_compress_state::{Level};
+use synapse_compress_state::Level;
 
 #[test]
 #[serial(db)]
