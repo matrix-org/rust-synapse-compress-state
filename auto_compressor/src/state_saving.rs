@@ -1,13 +1,10 @@
 // This module contains functions to communicate with the database
 
 use anyhow::{bail, Result};
-use core::fmt;
-use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use std::borrow::Cow;
 use synapse_compress_state::Level;
 
 use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
-use postgres::{fallible_iterator::FallibleIterator, Client};
+use postgres::{fallible_iterator::FallibleIterator, types::ToSql, Client};
 use postgres_openssl::MakeTlsConnector;
 
 /// Connects to the database and returns a postgres client
@@ -192,8 +189,9 @@ pub fn write_room_compressor_state(
     level_info: &[Level],
     last_compressed: i64,
 ) -> Result<()> {
-    // The query we are going to build up
-    let mut sql = String::new();
+    // Wrap all the changes to the state for this room in a transaction
+    // This prevents accidentally having malformed compressor start info
+    let mut write_transaction = client.transaction()?;
 
     // Go through every level that the compressor is using
     for (level_num, level) in level_info.iter().enumerate() {
@@ -208,74 +206,44 @@ pub fn write_room_compressor_state(
             level.get_head(),
         );
 
-        // Current_head is either a value or NULL
-        // need to convert from Option so that this can be placed into a string
-        let current_head = match current_head {
-            Some(s) => s.to_string(),
-            None => "NULL".to_string(),
-        };
-
         // Update the database with this compressor state information
         //
         // Some of these are `usize` as they may be used to index vectors, but stored as Postgres
         // type `INT` which is the same as`i32`.
         //
         // Since these values should always be small, this conversion should be safe.
-        sql.push_str(&format!(
+        let (level_num, max_size, current_len) =
+            (level_num as i32, max_size as i32, current_len as i32);
+        let params: Vec<&(dyn ToSql + Sync)> =
+            vec![&room_id, &level_num, &max_size, &current_len, &current_head];
+
+        write_transaction.execute(
             r#"
-            INSERT INTO state_compressor_state 
-                (room_id, level_num, max_size, current_length, current_head) 
-                VALUES ({0}, {1}, {2}, {3}, {4})
-            ON CONFLICT (room_id, level_num) 
-                DO UPDATE SET (max_size, current_length, current_head) 
-                    = (excluded.max_size, excluded.current_length, excluded.current_head);
+                INSERT INTO state_compressor_state 
+                    (room_id, level_num, max_size, current_length, current_head) 
+                    VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (room_id, level_num) 
+                    DO UPDATE SET (max_size, current_length, current_head) 
+                        = (excluded.max_size, excluded.current_length, excluded.current_head);
             "#,
-            PGEscape(room_id),
-            level_num as i32,
-            max_size as i32,
-            current_len as i32,
-            current_head,
-        ));
+            &params,
+        )?;
     }
 
     // Update the database with this progress information
-    sql.push_str(&format!(
+    let params: Vec<&(dyn ToSql + Sync)> = vec![&room_id, &last_compressed];
+    write_transaction.execute(
         r#"
             INSERT INTO state_compressor_progress (room_id, last_compressed) 
-                VALUES ({0},{1})
+                VALUES ($1, $2)
             ON CONFLICT (room_id)
                 DO UPDATE SET last_compressed = excluded.last_compressed;
         "#,
-        PGEscape(room_id),
-        last_compressed,
-    ));
+        &params,
+    )?;
 
-    // Wrap all the changes to the state for this room in a transaction
-    // This prevents accidentally having malformed compressor start info
-    let mut write_transaction = client.transaction()?;
-    write_transaction.batch_execute(&sql)?;
+    // Commit the transaction (otherwise changes never happen)
     write_transaction.commit()?;
 
     Ok(())
-}
-
-// TODO: find a library that has an existing safe postgres escape function
-/// Helper function that escapes the wrapped text when writing SQL
-struct PGEscape<'a>(pub &'a str);
-
-impl<'a> fmt::Display for PGEscape<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut delim = Cow::from("$$");
-        while self.0.contains(&delim as &str) {
-            let s: String = thread_rng()
-                .sample_iter(&Alphanumeric)
-                .take(10)
-                .map(char::from)
-                .collect();
-
-            delim = format!("${}$", s).into();
-        }
-
-        write!(f, "{}{}{}", delim, self.0, delim)
-    }
 }
