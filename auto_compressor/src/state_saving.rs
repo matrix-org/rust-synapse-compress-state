@@ -76,7 +76,7 @@ pub fn read_room_compressor_state(
     let sql = r#"
         SELECT level_num, max_size, current_length, current_head, last_compressed
         FROM state_compressor_state 
-        JOIN state_compressor_progress USING (room_id)
+        LEFT JOIN state_compressor_progress USING (room_id)
         WHERE room_id = $1
         ORDER BY level_num ASC
     "#;
@@ -90,7 +90,11 @@ pub fn read_room_compressor_state(
 
     // The vector to store the level info from the database in
     let mut level_info: Vec<Level> = Vec::new();
-    let mut last_compressed: i64 = 0;
+
+    // Where the last compressor run stopped
+    let mut last_compressed = None;
+    // Used to only read last_compressed value once
+    let mut first_row = true;
 
     // Loop through all the rows retrieved by that query
     while let Some(l) = levels.next()? {
@@ -104,7 +108,18 @@ pub fn read_room_compressor_state(
         let max_size: usize = l.get::<_, i32>("max_size") as usize;
         let current_length: usize = l.get::<_, i32>("current_length") as usize;
         let current_head: Option<i64> = l.get("current_head");
-        last_compressed = l.get::<_, i64>("last_compressed"); // possibly rewrite same value
+
+        // Only read the last compressed column once since is the same for each row
+        if first_row {
+            last_compressed = l.get("last_compressed"); // might be NULL if corrupted
+            if last_compressed.is_none() {
+                bail!(
+                    "No entry in state_compressor_progress for room {} but entries in state_compressor_state were found",
+                    room_id
+                )
+            }
+            first_row = false;
+        }
 
         // Check that there aren't multiple entries for the same level number
         // in the database. (Should be impossible due to unique key constraint)
@@ -158,7 +173,8 @@ pub fn read_room_compressor_state(
     }
 
     // Return the compressor state we retrieved
-    Ok(Some((last_compressed, level_info)))
+    // last_compressed cannot be None at this point, so safe to unwrap
+    Ok(Some((last_compressed.unwrap(), level_info)))
 }
 
 /// Save the level info so it can be loaded by the next run of the compressor
