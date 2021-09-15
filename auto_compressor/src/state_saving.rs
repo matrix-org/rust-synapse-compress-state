@@ -52,9 +52,8 @@ pub fn create_tables_if_needed(client: &mut Client) -> Result<()> {
 
     let create_progress_table = r#"
         CREATE TABLE IF NOT EXISTS state_compressor_progress (
-            room_id TEXT NOT NULL,
-            last_compressed BIGINT NOT NULL,
-            UNIQUE (room_id)
+            room_id TEXT PRIMARY KEY,
+            last_compressed BIGINT NOT NULL
         )"#;
 
     client.execute(create_progress_table, &[])?;
@@ -76,9 +75,9 @@ pub fn read_room_compressor_state(
     // Ordered by ascending level_number
     let sql = r#"
         SELECT level_num, max_size, current_length, current_head, last_compressed
-        FROM state_compressor_state as s
-        LEFT JOIN state_compressor_progress as p ON s.room_id = p.room_id
-        WHERE s.room_id = $1
+        FROM state_compressor_state 
+        JOIN state_compressor_progress USING (room_id)
+        WHERE room_id = $1
         ORDER BY level_num ASC
     "#;
 
@@ -91,19 +90,24 @@ pub fn read_room_compressor_state(
 
     // The vector to store the level info from the database in
     let mut level_info: Vec<Level> = Vec::new();
-    let mut last_compressed = 0;
+    let mut last_compressed: i64 = 0;
 
     // Loop through all the rows retrieved by that query
     while let Some(l) = levels.next()? {
-        // read out the fields into variables
-        let level_num: usize = l.get::<_, i32>(0) as usize;
-        let max_size: usize = l.get::<_, i32>(1) as usize;
-        let current_length: usize = l.get::<_, i32>(2) as usize;
-        let current_head: Option<i64> = l.get::<_, Option<i64>>(3);
-        last_compressed = l.get::<_, i64>(4); // possibly rewrite same value
+        // Read out the fields into variables
+        //
+        // Some of these are `usize` as they may be used to index vectors, but stored as Postgres
+        // type `INT` which is the same as`i32`.
+        //
+        // Since usize is unlikely to be ess than 32 bits wide, this conversion should be safe
+        let level_num: usize = l.get::<_, i32>("level_num") as usize;
+        let max_size: usize = l.get::<_, i32>("max_size") as usize;
+        let current_length: usize = l.get::<_, i32>("current_length") as usize;
+        let current_head: Option<i64> = l.get("current_head");
+        last_compressed = l.get::<_, i64>("last_compressed"); // possibly rewrite same value
 
         // Check that there aren't multiple entries for the same level number
-        // in the database.
+        // in the database. (Should be impossible due to unique key constraint)
         if prev_seen == level_num {
             bail!(
                 "The level {} occurs twice in state_compressor_state for room {}",
@@ -173,7 +177,7 @@ pub fn write_room_compressor_state(
     last_compressed: i64,
 ) -> Result<()> {
     // The query we are going to build up
-    let mut sql = "".to_string();
+    let mut sql = String::new();
 
     // Go through every level that the compressor is using
     for (level_num, level) in level_info.iter().enumerate() {
@@ -181,14 +185,7 @@ pub fn write_room_compressor_state(
         // so need to add 1 to get correct number
         let level_num = level_num + 1;
 
-        // delete the old information for this level from the database
-        sql.push_str(&format!(
-            "DELETE FROM state_compressor_state WHERE room_id = {} AND level_num = {};\n",
-            PGEscape(room_id),
-            level_num,
-        ));
-
-        // bring the level info out of the tuple
+        // bring the level info out of the Level struct
         let (max_size, current_len, current_head) = (
             level.get_max_length(),
             level.get_current_length(),
@@ -202,29 +199,37 @@ pub fn write_room_compressor_state(
             None => "NULL".to_string(),
         };
 
-        // Add the new informaton for this level into the database
+        // Update the database with this compressor state information
+        //
+        // Some of these are `usize` as they may be used to index vectors, but stored as Postgres
+        // type `INT` which is the same as`i32`.
+        //
+        // Since these values should always be small, this conversion should be safe.
         sql.push_str(&format!(
-            concat!(
-                "INSERT INTO state_compressor_state (room_id, level_num, max_size,",
-                " current_length, current_head) VALUES ({}, {}, {}, {}, {});"
-            ),
+            r#"
+            INSERT INTO state_compressor_state 
+                (room_id, level_num, max_size, current_length, current_head) 
+                VALUES ({0}, {1}, {2}, {3}, {4})
+            ON CONFLICT (room_id, level_num) 
+                DO UPDATE SET (max_size, current_length, current_head) 
+                    = (excluded.max_size, excluded.current_length, excluded.current_head);
+            "#,
             PGEscape(room_id),
-            level_num,
-            max_size,
-            current_len,
+            level_num as i32,
+            max_size as i32,
+            current_len as i32,
             current_head,
         ));
     }
 
-    // delete the old information for this level from the database
+    // Update the database with this progress information
     sql.push_str(&format!(
-        "DELETE FROM state_compressor_progress WHERE room_id = {};\n",
-        PGEscape(room_id),
-    ));
-
-    // Add the new informaton for this level into the database
-    sql.push_str(&format!(
-        "INSERT INTO state_compressor_progress (room_id, last_compressed) VALUES ({},{});",
+        r#"
+            INSERT INTO state_compressor_progress (room_id, last_compressed) 
+                VALUES ({0},{1})
+            ON CONFLICT (room_id)
+                DO UPDATE SET last_compressed = excluded.last_compressed;
+        "#,
         PGEscape(room_id),
         last_compressed,
     ));

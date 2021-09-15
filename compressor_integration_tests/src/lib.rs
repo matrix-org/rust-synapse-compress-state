@@ -80,9 +80,9 @@ pub fn empty_database() {
 
     // delete all the contents from all three tables
     let sql = r"
-        DELETE FROM state_groups;
-        DELETE FROM state_group_edges;
-        DELETE FROM state_groups_state;
+        TRUNCATE state_groups;
+        TRUNCATE state_group_edges;
+        TRUNCATE state_groups_state;
     ";
 
     client.batch_execute(sql).unwrap();
@@ -311,8 +311,8 @@ pub fn clear_compressor_state() {
 
     // delete all the contents from the state compressor tables
     let sql = r"
-        DELETE FROM state_compressor_state;
-        DELETE FROM state_compressor_progress;
+        TRUNCATE state_compressor_state;
+        TRUNCATE state_compressor_progress;
     ";
 
     client.batch_execute(sql).unwrap();
