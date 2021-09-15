@@ -223,8 +223,10 @@ pub fn write_room_compressor_state(
                     (room_id, level_num, max_size, current_length, current_head) 
                     VALUES ($1, $2, $3, $4, $5)
                 ON CONFLICT (room_id, level_num) 
-                    DO UPDATE SET (max_size, current_length, current_head) 
-                        = (excluded.max_size, excluded.current_length, excluded.current_head);
+                    DO UPDATE SET 
+                        max_size = excluded.max_size,
+                        current_length = excluded.current_length,
+                        current_head= excluded.current_head;
             "#,
             &params,
         )?;
