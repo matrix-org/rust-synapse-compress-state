@@ -13,6 +13,7 @@ postgres = "0.19.0"
 postgres-openssl = "0.5.0"
 rand = "0.8.0"
 synapse_compress_state = { path = "../" }
+auto_compressor = { path = "../auto_compressor/" }
 
 [dependencies.state-map]
 git = "https://github.com/matrix-org/rust-matrix-state-map"
