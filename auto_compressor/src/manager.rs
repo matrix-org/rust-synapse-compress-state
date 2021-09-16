@@ -4,7 +4,7 @@
 use crate::state_saving::{
     connect_to_database, read_room_compressor_state, write_room_compressor_state,
 };
-use anyhow::{bail, Result};
+use anyhow::{Context, Result};
 use log::{debug, warn};
 use synapse_compress_state::{continue_run, ChunkStats, Level};
 
@@ -42,20 +42,12 @@ pub fn run_compressor_on_room_chunk(
     default_levels: &[Level],
 ) -> Result<Option<ChunkStats>> {
     // connect to the database
-    let mut client = match connect_to_database(db_url) {
-        Ok(c) => c,
-        Err(e) => bail!("Error while connecting to {}: {}", db_url, e),
-    };
+    let mut client =
+        connect_to_database(db_url).with_context(|| format!("Failed to connect to {}", db_url))?;
 
     // Access the database to find out where the compressor last got up to
-    let retrieved_state = match read_room_compressor_state(&mut client, room_id) {
-        Ok(s) => s,
-        Err(e) => bail!(
-            "Error while reading compressor state for room {}: {}",
-            room_id,
-            e
-        ),
-    };
+    let retrieved_state = read_room_compressor_state(&mut client, room_id)
+        .with_context(|| format!("Failed to read compressor state for room {}", room_id,))?;
 
     // If the database didn't contain any information, then use the default state
     let (start, level_info) = match retrieved_state {
@@ -86,43 +78,35 @@ pub fn run_compressor_on_room_chunk(
         }
 
         // Skip over the failed chunk and set the level info to the default (empty) state
-        let write_result = write_room_compressor_state(
+        write_room_compressor_state(
             &mut client,
             room_id,
             default_levels,
             chunk_stats.last_compressed_group,
-        );
-
-        if let Err(e) = write_result {
-            bail!(
-                "Error when skipping chunk in room {} between {:?} and {}: {}",
-                room_id,
-                start,
-                chunk_stats.last_compressed_group,
-                e,
+        )
+        .with_context(|| {
+            format!(
+                "Failed to skip chunk in room {} between {:?} and {}",
+                room_id, start, chunk_stats.last_compressed_group
             )
-        }
+        })?;
 
         return Ok(Some(chunk_stats));
     }
 
     // Save where we got up to after this successful commit
-    let write_result = write_room_compressor_state(
+    write_room_compressor_state(
         &mut client,
         room_id,
         &chunk_stats.new_level_info,
         chunk_stats.last_compressed_group,
-    );
-
-    if let Err(e) = write_result {
-        bail!(
-            "Error when saving state after compressing chunk in room {} between {:?} and {}: {}",
-            room_id,
-            start,
-            chunk_stats.last_compressed_group,
-            e,
+    )
+    .with_context(|| {
+        format!(
+            "Failed to save state after compressing chunk in room {} between {:?} and {}",
+            room_id, start, chunk_stats.last_compressed_group
         )
-    }
+    })?;
 
     Ok(Some(chunk_stats))
 }
