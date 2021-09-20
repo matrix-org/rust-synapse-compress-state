@@ -35,7 +35,7 @@ fn continue_run_called_twice_same_as_run() {
 
     // compress in 3,3 level sizes
     // since the compressor hasn't been run before they are empty
-    let level_info = vec![Level::restore(3, 0, None), Level::restore(3, 0, None)];
+    let level_info = vec![Level::new(3), Level::new(3)];
 
     // Run the compressor with those settings
     let chunk_stats_1 = continue_run(start, chunk_size, &db_url, &room_id, &level_info).unwrap();

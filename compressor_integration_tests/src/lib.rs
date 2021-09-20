@@ -1,9 +1,10 @@
+use log::LevelFilter;
 use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 use postgres::{fallible_iterator::FallibleIterator, Client};
 use postgres_openssl::MakeTlsConnector;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use state_map::StateMap;
-use std::{borrow::Cow, collections::BTreeMap, fmt};
+use std::{borrow::Cow, collections::BTreeMap, env, fmt};
 use string_cache::DefaultAtom as Atom;
 
 use synapse_compress_state::StateGroupEntry;
@@ -351,4 +352,28 @@ fn functions_are_self_consistent() {
 
     assert!(database_collapsed_states_match_map(&initial));
     assert!(database_structure_matches_map(&initial));
+}
+
+pub fn setup_logger() {
+    // setup the logger for the auto_compressor
+    // The default can be overwritten with COMPRESSOR_LOG_LEVEL
+    // see the README for more information <--- TODO
+    if env::var("COMPRESSOR_LOG_LEVEL").is_err() {
+        let mut log_builder = env_logger::builder();
+        // set is_test(true) so that the output is hidden by cargo test (unless the test fails)
+        log_builder.is_test(true);
+        // default to printing the debug information for both packages being tested
+        // (Note that just setting the global level to debug will log every sql transaction)
+        log_builder.filter_module("synapse_compress_state", LevelFilter::Debug);
+        log_builder.filter_module("auto_compressor", LevelFilter::Debug);
+        // use try_init() incase the logger has been setup by some previous test
+        let _ = log_builder.try_init();
+    } else {
+        // If COMPRESSOR_LOG_LEVEL was set then use that
+        let mut log_builder = env_logger::Builder::from_env("COMPRESSOR_LOG_LEVEL");
+        // set is_test(true) so that the output is hidden by cargo test (unless the test fails)
+        log_builder.is_test(true);
+        // use try_init() in case the logger has been setup by some previous test
+        let _ = log_builder.try_init();
+    }
 }
