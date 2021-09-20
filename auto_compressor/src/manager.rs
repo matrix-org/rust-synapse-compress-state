@@ -199,20 +199,11 @@ pub fn compress_largest_rooms(
         Err(e) => bail!("Error while connecting to {}: {}", db_url, e),
     };
 
-    if let Err(e) = create_tables_if_needed(&mut client) {
-        bail!(
-            "Error while attempting to create state compressor tables: {}",
-            e
-        );
-    }
+    create_tables_if_needed(&mut client)
+        .with_context(|| "Failed to create state compressor tables")?;
 
-    let rooms_to_compress = match get_rooms_with_most_rows_to_compress(&mut client, number) {
-        Ok(r) => r,
-        Err(e) => bail!(
-            "Error while trying to work out what room to compress next: {}",
-            e
-        ),
-    };
+    let rooms_to_compress = get_rooms_with_most_rows_to_compress(&mut client, number)
+        .with_context(|| "Failed to work out what room to compress next")?;
 
     if rooms_to_compress.is_none() {
         return Ok(());
