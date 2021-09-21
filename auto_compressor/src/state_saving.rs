@@ -1,6 +1,7 @@
 // This module contains functions to communicate with the database
 
 use anyhow::{bail, Result};
+use log::trace;
 use synapse_compress_state::Level;
 
 use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
@@ -54,6 +55,20 @@ pub fn create_tables_if_needed(client: &mut Client) -> Result<()> {
         )"#;
 
     client.execute(create_progress_table, &[])?;
+
+    let create_compressor_global_progress_table = r#"
+        CREATE TABLE IF NOT EXISTS state_compressor_total_progress(
+            lock CHAR(1) NOT NULL DEFAULT 'X' UNIQUE,
+            lowest_uncompressed_group BIGINT NOT NULL,
+            CHECK (Lock='X')
+        );
+        INSERT INTO state_compressor_total_progress 
+            (lowest_uncompressed_group) 
+            VALUES (0)
+        ON CONFLICT (lock) DO NOTHING;
+    "#;
+
+    client.batch_execute(create_compressor_global_progress_table)?;
 
     Ok(())
 }
@@ -250,43 +265,58 @@ pub fn write_room_compressor_state(
     Ok(())
 }
 
-/// Returns the top [number] rooms with the most uncompressed state
+/// Returns the room with with the lowest uncompressed state group id
 ///
-/// Uncompressed state is measured by number of rows in the state_groups_state
-/// table due to state groups with id's lower than where the compressor has gotten
-/// up to (i.e. the last_compressed value in the state_compressor_progress
-/// table).
+/// A group is detected as uncompressed if it is greater than the `last_compressed`
+/// entry in `state_compressor_progress` for that room.
+///
+/// The `lowest_uncompressed_group` value stored in `state_compressor_total_progress`
+/// stores where this method last finished, to prevent repeating work
 ///
 /// # Arguments
 ///
 /// * `client`    -   A postgres client used to send the requests to the database
-/// * `number`    -   How many groups to return
-pub fn get_rooms_with_most_rows_to_compress(
-    client: &mut Client,
-    number: i64,
-) -> Result<Option<Vec<(String, i64)>>> {
-    let get_biggest_rooms = r#"
-        SELECT s.room_id, count(*) AS num_rows
-        FROM state_groups_state AS s
-        LEFT JOIN state_compressor_progress AS p 
-            ON s.room_id = p.room_id
-        WHERE s.state_group > p.last_compressed 
-            OR p.last_compressed IS NULL
-        GROUP BY s.room_id
-        ORDER BY num_rows DESC
-        LIMIT $1
+pub fn get_next_room_to_compress(client: &mut Client) -> Result<Option<String>> {
+    // Walk the state_groups table until find next uncompressed group
+    let get_next_room = r#"
+        SELECT room_id, id 
+        FROM state_groups
+        LEFT JOIN state_compressor_progress USING (room_id)
+        WHERE
+            id >= (SELECT lowest_uncompressed_group FROM state_compressor_total_progress)
+            AND (
+                id > last_compressed
+                OR last_compressed IS NULL
+            )
+        ORDER BY id ASC
+        LIMIT 1
     "#;
 
-    let rooms = client.query(get_biggest_rooms, &[&number])?;
+    let rows = client.query(get_next_room, &[])?;
 
-    if rooms.is_empty() {
+    // If there is nothing left to compress then no rows are returned
+    if rows.is_empty() {
         return Ok(None);
     }
 
-    let rows_to_compress = rooms
-        .iter()
-        .map(|r| (r.get::<_, String>(0), r.get::<_, i64>(1)))
-        .collect();
+    let next_room_row = rows.get(0).expect("Have checked that rows is not empty");
 
-    Ok(Some(rows_to_compress))
+    let next_room: String = next_room_row.get("room_id");
+    let lowest_uncompressed_group: i64 = next_room_row.get("id");
+
+    // This method has determined where the lowest uncompressesed group is, save that
+    // information so we don't have to redo this work in the future.
+    let update_total_progress = r#"
+        UPDATE state_compressor_total_progress SET lowest_uncompressed_group = $1;
+    "#;
+
+    client.execute(update_total_progress, &[&lowest_uncompressed_group])?;
+
+    trace!(
+        "next_room: {}, lowest_uncompressed: {}",
+        next_room,
+        lowest_uncompressed_group
+    );
+
+    Ok(Some(next_room))
 }
