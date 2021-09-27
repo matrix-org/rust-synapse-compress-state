@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use indicatif::{ProgressBar, ProgressStyle};
+use log::{debug, trace};
 use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 use postgres::{fallible_iterator::FallibleIterator, types::ToSql, Client};
 use postgres_openssl::MakeTlsConnector;
@@ -40,7 +41,6 @@ use super::StateGroupEntry;
 /// * `max_state_group`     -   If specified, then only fetch the entries for state
 ///                             groups lower than or equal to this number.
 /// * 'groups_to_compress'  -   The number of groups to get from the database before stopping
-
 pub fn get_data_from_db(
     db_url: &str,
     room_id: &str,
@@ -59,7 +59,6 @@ pub fn get_data_from_db(
     // Search for the group id of the groups_to_compress'th group after min_state_group
     // If this is saved, then the compressor can continue by having min_state_group being
     // set to this maximum. If no such group can be found then return None.
-
     let max_group_found = find_max_group(
         &mut client,
         room_id,
@@ -222,7 +221,7 @@ fn load_map_from_db(
         max_group_found,
     ));
 
-    println!("Got initial state from database. Checking for any missing state groups...");
+    debug!("Got initial state from database. Checking for any missing state groups...");
 
     // Due to reasons some of the state groups appear in the edges table, but
     // not in the state_groups_state table.
@@ -251,14 +250,14 @@ fn load_map_from_db(
             .collect();
 
         if missing_sgs.is_empty() {
-            // println!("No missing state groups");
+            trace!("No missing state groups");
             break;
         }
 
         missing_sgs.sort_unstable();
         missing_sgs.dedup();
 
-        // println!("Missing {} state groups", missing_sgs.len());
+        trace!("Missing {} state groups", missing_sgs.len());
 
         // find state groups not picked up already and add them to the map
         let map = get_missing_from_db(client, &missing_sgs, min_state_group, max_group_found);
@@ -535,7 +534,7 @@ pub fn send_changes_to_db(
 
     let mut client = Client::connect(db_url, connector).unwrap();
 
-    println!("Writing changes...");
+    debug!("Writing changes...");
 
     // setup the progress bar
     let pb: ProgressBar;

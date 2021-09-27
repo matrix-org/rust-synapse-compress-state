@@ -2,7 +2,7 @@ use compressor_integration_tests::{
     add_contents_to_database, database_collapsed_states_match_map, database_structure_matches_map,
     empty_database,
     map_builder::{compressed_3_3_from_0_to_13_with_state, line_segments_with_state},
-    DB_URL,
+    setup_logger, DB_URL,
 };
 use serial_test::serial;
 use synapse_compress_state::{continue_run, Level};
@@ -13,6 +13,7 @@ use synapse_compress_state::{continue_run, Level};
 #[test]
 #[serial(db)]
 fn continue_run_called_twice_same_as_run() {
+    setup_logger();
     // This starts with the following structure
     //
     // 0-1-2 3-4-5 6-7-8 9-10-11 12-13

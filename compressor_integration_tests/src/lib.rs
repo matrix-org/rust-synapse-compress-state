@@ -357,9 +357,9 @@ fn functions_are_self_consistent() {
 
 pub fn setup_logger() {
     // setup the logger for the auto_compressor
-    // The default can be overwritten with COMPRESSOR_LOG_LEVEL
+    // The default can be overwritten with RUST_LOG
     // see the README for more information <--- TODO
-    if env::var("COMPRESSOR_LOG_LEVEL").is_err() {
+    if env::var("RUST_LOG").is_err() {
         let mut log_builder = env_logger::builder();
         // set is_test(true) so that the output is hidden by cargo test (unless the test fails)
         log_builder.is_test(true);
@@ -370,8 +370,8 @@ pub fn setup_logger() {
         // use try_init() incase the logger has been setup by some previous test
         let _ = log_builder.try_init();
     } else {
-        // If COMPRESSOR_LOG_LEVEL was set then use that
-        let mut log_builder = env_logger::Builder::from_env("COMPRESSOR_LOG_LEVEL");
+        // If RUST_LOG was set then use that
+        let mut log_builder = env_logger::Builder::from_env("RUST_LOG");
         // set is_test(true) so that the output is hidden by cargo test (unless the test fails)
         log_builder.is_test(true);
         // use try_init() in case the logger has been setup by some previous test

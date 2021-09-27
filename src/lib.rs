@@ -20,6 +20,7 @@
 // of arguments - this hopefully doesn't make the code unclear
 // #[allow(clippy::too_many_arguments)] is therefore used around some functions
 
+use log::{info, warn};
 use pyo3::{exceptions, prelude::*};
 
 use clap::{crate_authors, crate_description, crate_name, crate_version, value_t, App, Arg};
@@ -290,7 +291,7 @@ impl Config {
 
 pub fn run(mut config: Config) {
     // First we need to get the current state groups
-    println!("Fetching state from DB for room '{}'...", config.room_id);
+    info!("Fetching state from DB for room '{}'...", config.room_id);
 
     let (state_group_map, max_group_found) = database::get_data_from_db(
         &config.db_url,
@@ -301,19 +302,19 @@ pub fn run(mut config: Config) {
     )
     .unwrap_or_else(|| panic!("No state groups found within this range"));
 
-    println!("Fetched state groups up to {}", max_group_found);
+    info!("Fetched state groups up to {}", max_group_found);
 
-    println!("Number of state groups: {}", state_group_map.len());
+    info!("Number of state groups: {}", state_group_map.len());
 
     let original_summed_size = state_group_map
         .iter()
         .fold(0, |acc, (_, v)| acc + v.state_map.len());
 
-    println!("Number of rows in current table: {}", original_summed_size);
+    info!("Number of rows in current table: {}", original_summed_size);
 
     // Now we actually call the compression algorithm.
 
-    println!("Compressing state...");
+    info!("Compressing state...");
 
     let compressor = Compressor::compress(&state_group_map, &config.level_sizes.0);
 
@@ -327,22 +328,22 @@ pub fn run(mut config: Config) {
 
     let ratio = (compressed_summed_size as f64) / (original_summed_size as f64);
 
-    println!(
+    info!(
         "Number of rows after compression: {} ({:.2}%)",
         compressed_summed_size,
         ratio * 100.
     );
 
-    println!("Compression Statistics:");
-    println!(
+    info!("Compression Statistics:");
+    info!(
         "  Number of forced resets due to lacking prev: {}",
         compressor.stats.resets_no_suitable_prev
     );
-    println!(
+    info!(
         "  Number of compressed rows caused by the above: {}",
         compressor.stats.resets_no_suitable_prev_size
     );
-    println!(
+    info!(
         "  Number of state groups changed: {}",
         compressor.stats.state_groups_changed
     );
@@ -352,14 +353,14 @@ pub fn run(mut config: Config) {
     }
 
     if ratio > 1.0 {
-        println!("This compression would not remove any rows. Exiting.");
+        warn!("This compression would not remove any rows. Exiting.");
         return;
     }
 
     if let Some(min) = config.min_saved_rows {
         let saving = (original_summed_size - compressed_summed_size) as i32;
         if saving < min {
-            println!(
+            warn!(
                 "Only {} rows would be saved by this compression. Skipping output.",
                 saving
             );
@@ -485,7 +486,7 @@ fn output_sql(
         return;
     }
 
-    println!("Writing changes...");
+    info!("Writing changes...");
 
     let pb: ProgressBar;
     if cfg!(feature = "no-progress-bars") {
@@ -559,7 +560,7 @@ pub fn continue_run(
     let ratio = (new_num_rows as f64) / (original_num_rows as f64);
 
     if ratio > 1.0 {
-        println!("This compression would not remove any rows. Aborting.");
+        warn!("This compression would not remove any rows. Aborting.");
         return Some(ChunkStats {
             new_level_info: compressor.get_level_info(),
             last_compressed_group: max_group_found,
@@ -600,7 +601,7 @@ fn check_that_maps_match(
     old_map: &BTreeMap<i64, StateGroupEntry>,
     new_map: &BTreeMap<i64, StateGroupEntry>,
 ) {
-    println!("Checking that state maps match...");
+    info!("Checking that state maps match...");
 
     let pb: ProgressBar;
     if cfg!(feature = "no-progress-bars") {
@@ -625,10 +626,10 @@ fn check_that_maps_match(
             pb.inc(1);
 
             if expected != actual {
-                println!("State Group: {}", sg);
-                println!("Expected: {:#?}", expected);
-                println!("actual: {:#?}", actual);
-                Err(format!("States for group {} do not match", sg))
+                Err(format!(
+                    "States for group {} do not match. Expected {:#?}, found {:#?}",
+                    sg, expected, actual
+                ))
             } else {
                 Ok(())
             }
@@ -637,7 +638,7 @@ fn check_that_maps_match(
 
     pb.finish();
 
-    println!("New state map matches old one");
+    info!("New state map matches old one");
 }
 
 /// Gets the full state for a given group from the map (of deltas)
