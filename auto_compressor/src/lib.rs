@@ -91,7 +91,6 @@ fn auto_compressor(_py: Python, m: &PyModule) -> PyResult<()> {
         default_levels: String,
         number_of_chunks: i64,
     ) -> PyResult<()> {
-
         // Announce the start of the program to the logs
         log::info!("auto_compressor started");
 
