@@ -111,9 +111,11 @@ fn auto_compressor(_py: Python, m: &PyModule) -> PyResult<()> {
             number_of_chunks,
         );
 
+        // (Note, need to do `{:?}` formatting to show error context)
+        // Don't log the context of errors but do use it in the PyRuntimeError
         if let Err(e) = run_result {
             error!("{}", e);
-            return Err(PyErr::new::<PyRuntimeError, _>(e.to_string()));
+            return Err(PyErr::new::<PyRuntimeError, _>(format!("{:?}", e)));
         }
 
         log::info!("auto_compressor finished");
