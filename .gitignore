@@ -4,3 +4,4 @@
 *.old
 **.sql
 *.csv
+**.log
