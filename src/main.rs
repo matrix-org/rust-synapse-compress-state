@@ -28,9 +28,9 @@ use synapse_compress_state as comp_state;
 
 fn main() {
     // setup the logger
-    // The default can be overwritten with COMPRESSOR_LOG_LEVEL
+    // The default can be overwritten with RUST_LOG
     // see the README for more information <---- TODO
-    if env::var("COMPRESSOR_LOG_LEVEL").is_err() {
+    if env::var("RUST_LOG").is_err() {
         let mut log_builder = env_logger::builder();
         // Only output the log message (and not the prefixed timestamp etc.)
         log_builder.format(|buf, record| writeln!(buf, "{}", record.args()));
@@ -38,8 +38,8 @@ fn main() {
         log_builder.filter_module("synapse_compress_state", LevelFilter::Debug);
         log_builder.init();
     } else {
-        // If COMPRESSOR_LOG_LEVEL was set then use that
-        env_logger::Builder::from_env("COMPRESSOR_LOG_LEVEL").init();
+        // If RUST_LOG was set then use that
+        env_logger::Builder::from_env("RUST_LOG").init();
     }
 
     comp_state::run(comp_state::Config::parse_arguments());
