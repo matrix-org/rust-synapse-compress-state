@@ -141,13 +141,10 @@ pub fn compress_chunks_of_database(
     number_of_chunks: i64,
 ) -> Result<()> {
     // connect to the database
-    let mut client = match connect_to_database(db_url) {
-        Ok(c) => c,
-        Err(e) => bail!("Error while connecting to {}: {}", db_url, e),
-    };
+    let mut client = connect_to_database(db_url)
+        .with_context(|| format!("Failed to connect to database at {}", db_url))?;
 
-    create_tables_if_needed(&mut client)
-        .with_context(|| "Failed to create state compressor tables")?;
+    create_tables_if_needed(&mut client).context("Failed to create state compressor tables")?;
 
     let mut skipped_chunks = 0;
     let mut rows_saved = 0;
@@ -155,7 +152,7 @@ pub fn compress_chunks_of_database(
 
     while chunks_processed < number_of_chunks {
         let room_to_compress = get_next_room_to_compress(&mut client)
-            .with_context(|| "Failed to work out what room to compress next")?;
+            .context("Failed to work out what room to compress next")?;
 
         if room_to_compress.is_none() {
             break;

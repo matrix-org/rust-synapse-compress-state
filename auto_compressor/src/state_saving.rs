@@ -292,14 +292,13 @@ pub fn get_next_room_to_compress(client: &mut Client) -> Result<Option<String>> 
         LIMIT 1
     "#;
 
-    let rows = client.query(get_next_room, &[])?;
+    let row_opt = client.query_opt(get_next_room, &[])?;
 
-    // If there is nothing left to compress then no rows are returned
-    if rows.is_empty() {
+    let next_room_row = if let Some(row) = row_opt {
+        row
+    } else {
         return Ok(None);
-    }
-
-    let next_room_row = rows.get(0).expect("Have checked that rows is not empty");
+    };
 
     let next_room: String = next_room_row.get("room_id");
     let lowest_uncompressed_group: i64 = next_room_row.get("id");
