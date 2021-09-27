@@ -58,6 +58,18 @@ impl FromStr for LevelInfo {
 // PyO3 INTERFACE STARTS HERE
 #[pymodule]
 fn auto_compressor(_py: Python, m: &PyModule) -> PyResult<()> {
+    let _ = pyo3_log::Logger::default()
+        // don't send out anything lower than a warning from other crates
+        .filter(LevelFilter::Warn)
+        // don't log warnings from synapse_compress_state, the auto_compressor handles these
+        // situations and provides better log messages
+        .filter_target("synapse_compress_state".to_owned(), LevelFilter::Error)
+        // log info and above for the auto_compressor
+        .filter_target("auto_compressor".to_owned(), LevelFilter::Debug)
+        .install();
+    // ensure any panics produce error messages in the log
+    log_panics::init();
+
     #[pyfn(m, compress_largest_rooms)]
     fn compress_state_events_table(
         py: Python,
@@ -68,27 +80,18 @@ fn auto_compressor(_py: Python, m: &PyModule) -> PyResult<()> {
     ) -> PyResult<()> {
         // Stops the compressor from holding the GIL while running
         py.allow_threads(|| {
-            compress_state_events_table_body(db_url, chunk_size, default_levels, number_of_chunks)
+            _compress_state_events_table_body(db_url, chunk_size, default_levels, number_of_chunks)
         })
     }
 
-    fn compress_state_events_table_body(
+    // Not accessbile through Py03. It is a "private" function.
+    fn _compress_state_events_table_body(
         db_url: String,
         chunk_size: i64,
         default_levels: String,
         number_of_chunks: i64,
     ) -> PyResult<()> {
-        let _ = pyo3_log::Logger::default()
-            // don't send out anything lower than a warning from other crates
-            .filter(LevelFilter::Warn)
-            // don't log warnings from synapse_compress_state, the auto_compressor handles these
-            // situations and provides better log messages
-            .filter_target("synapse_compress_state".to_owned(), LevelFilter::Error)
-            // log info and above for the auto_compressor
-            .filter_target("auto_compressor".to_owned(), LevelFilter::Info)
-            .install();
-        // ensure any panics produce error messages in the log
-        log_panics::init();
+
         // Announce the start of the program to the logs
         log::info!("auto_compressor started");
 
