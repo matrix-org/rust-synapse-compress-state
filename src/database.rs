@@ -373,7 +373,12 @@ fn get_initial_data_from_db(
     // Copy the data from the database into a map
     let mut state_group_map: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
 
-    let pb = ProgressBar::new_spinner();
+    let pb: ProgressBar;
+    if cfg!(feature = "no-progress-bars") {
+        pb = ProgressBar::hidden();
+    } else {
+        pb = ProgressBar::new_spinner();
+    }
     pb.set_style(
         ProgressStyle::default_spinner().template("{spinner} [{elapsed}] {pos} rows retrieved"),
     );
@@ -533,7 +538,12 @@ pub fn send_changes_to_db(
     println!("Writing changes...");
 
     // setup the progress bar
-    let pb = ProgressBar::new(old_map.len() as u64);
+    let pb: ProgressBar;
+    if cfg!(feature = "no-progress-bars") {
+        pb = ProgressBar::hidden();
+    } else {
+        pb = ProgressBar::new(old_map.len() as u64);
+    }
     pb.set_style(
         ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
     );

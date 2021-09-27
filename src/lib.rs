@@ -487,7 +487,12 @@ fn output_sql(
 
     println!("Writing changes...");
 
-    let pb = ProgressBar::new(old_map.len() as u64);
+    let pb: ProgressBar;
+    if cfg!(feature = "no-progress-bars") {
+        pb = ProgressBar::hidden();
+    } else {
+        pb = ProgressBar::new(old_map.len() as u64);
+    }
     pb.set_style(
         ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
     );
@@ -597,7 +602,12 @@ fn check_that_maps_match(
 ) {
     println!("Checking that state maps match...");
 
-    let pb = ProgressBar::new(old_map.len() as u64);
+    let pb: ProgressBar;
+    if cfg!(feature = "no-progress-bars") {
+        pb = ProgressBar::hidden();
+    } else {
+        pb = ProgressBar::new(old_map.len() as u64);
+    }
     pb.set_style(
         ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
     );
