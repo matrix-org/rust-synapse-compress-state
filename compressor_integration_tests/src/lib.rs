@@ -314,6 +314,7 @@ pub fn clear_compressor_state() {
     let sql = r"
         TRUNCATE state_compressor_state;
         TRUNCATE state_compressor_progress;
+        UPDATE state_compressor_total_progress SET lowest_uncompressed_group = 0;
     ";
 
     client.batch_execute(sql).unwrap();

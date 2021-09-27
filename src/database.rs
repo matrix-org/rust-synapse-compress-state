@@ -158,6 +158,7 @@ fn load_level_heads(client: &mut Client, level_info: &[Level]) -> BTreeMap<i64, 
         LEFT JOIN state_groups_state AS s ON (m.id = s.state_group)
         LEFT JOIN state_group_edges AS e ON (m.id = e.state_group)
         WHERE m.id = ANY($1)
+        ORDER BY m.id
     "#;
 
     // Actually do the query
@@ -301,10 +302,13 @@ fn find_max_group(
     // Note a min state group is only used if groups_to_compress also is
     if min_state_group.is_some() && groups_to_compress.is_some() {
         params = vec![&room_id, &min_state_group, &groups_to_compress];
-        query_chunk_of_ids = format!(r"{} AND id > $2 LIMIT $3", query_chunk_of_ids);
+        query_chunk_of_ids = format!(
+            r"{} AND id > $2 ORDER BY id ASC LIMIT $3",
+            query_chunk_of_ids
+        );
     } else if groups_to_compress.is_some() {
         params = vec![&room_id, &groups_to_compress];
-        query_chunk_of_ids = format!(r"{} LIMIT $2", query_chunk_of_ids);
+        query_chunk_of_ids = format!(r"{} ORDER BY id ASC LIMIT $2", query_chunk_of_ids);
     } else {
         params = vec![&room_id];
     }

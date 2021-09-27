@@ -1,6 +1,7 @@
 // This module contains functions to communicate with the database
 
 use anyhow::{bail, Result};
+use log::trace;
 use synapse_compress_state::Level;
 
 use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
@@ -54,6 +55,20 @@ pub fn create_tables_if_needed(client: &mut Client) -> Result<()> {
         )"#;
 
     client.execute(create_progress_table, &[])?;
+
+    let create_compressor_global_progress_table = r#"
+        CREATE TABLE IF NOT EXISTS state_compressor_total_progress(
+            lock CHAR(1) NOT NULL DEFAULT 'X' UNIQUE,
+            lowest_uncompressed_group BIGINT NOT NULL,
+            CHECK (Lock='X')
+        );
+        INSERT INTO state_compressor_total_progress 
+            (lowest_uncompressed_group) 
+            VALUES (0)
+        ON CONFLICT (lock) DO NOTHING;
+    "#;
+
+    client.batch_execute(create_compressor_global_progress_table)?;
 
     Ok(())
 }
@@ -248,4 +263,59 @@ pub fn write_room_compressor_state(
     write_transaction.commit()?;
 
     Ok(())
+}
+
+/// Returns the room with with the lowest uncompressed state group id
+///
+/// A group is detected as uncompressed if it is greater than the `last_compressed`
+/// entry in `state_compressor_progress` for that room.
+///
+/// The `lowest_uncompressed_group` value stored in `state_compressor_total_progress`
+/// stores where this method last finished, to prevent repeating work
+///
+/// # Arguments
+///
+/// * `client`    -   A postgres client used to send the requests to the database
+pub fn get_next_room_to_compress(client: &mut Client) -> Result<Option<String>> {
+    // Walk the state_groups table until find next uncompressed group
+    let get_next_room = r#"
+        SELECT room_id, id 
+        FROM state_groups
+        LEFT JOIN state_compressor_progress USING (room_id)
+        WHERE
+            id >= (SELECT lowest_uncompressed_group FROM state_compressor_total_progress)
+            AND (
+                id > last_compressed
+                OR last_compressed IS NULL
+            )
+        ORDER BY id ASC
+        LIMIT 1
+    "#;
+
+    let row_opt = client.query_opt(get_next_room, &[])?;
+
+    let next_room_row = if let Some(row) = row_opt {
+        row
+    } else {
+        return Ok(None);
+    };
+
+    let next_room: String = next_room_row.get("room_id");
+    let lowest_uncompressed_group: i64 = next_room_row.get("id");
+
+    // This method has determined where the lowest uncompressesed group is, save that
+    // information so we don't have to redo this work in the future.
+    let update_total_progress = r#"
+        UPDATE state_compressor_total_progress SET lowest_uncompressed_group = $1;
+    "#;
+
+    client.execute(update_total_progress, &[&lowest_uncompressed_group])?;
+
+    trace!(
+        "next_room: {}, lowest_uncompressed: {}",
+        next_room,
+        lowest_uncompressed_group
+    );
+
+    Ok(Some(next_room))
 }
