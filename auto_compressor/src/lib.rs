@@ -59,24 +59,24 @@ impl FromStr for LevelInfo {
 #[pymodule]
 fn auto_compressor(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pyfn(m, compress_largest_rooms)]
-    fn compress_largest_rooms(
+    fn compress_state_events_table(
         py: Python,
         db_url: String,
         chunk_size: i64,
         default_levels: String,
-        number_of_rooms: i64,
+        number_of_chunks: i64,
     ) -> PyResult<()> {
         // Stops the compressor from holding the GIL while running
         py.allow_threads(|| {
-            compress_largest_rooms_body(db_url, chunk_size, default_levels, number_of_rooms)
+            compress_state_events_table_body(db_url, chunk_size, default_levels, number_of_chunks)
         })
     }
 
-    fn compress_largest_rooms_body(
+    fn compress_state_events_table_body(
         db_url: String,
         chunk_size: i64,
         default_levels: String,
-        number_of_rooms: i64,
+        number_of_chunks: i64,
     ) -> PyResult<()> {
         let _ = pyo3_log::Logger::default()
             // don't send out anything lower than a warning from other crates
@@ -104,11 +104,11 @@ fn auto_compressor(_py: Python, m: &PyModule) -> PyResult<()> {
         };
 
         // call compress_largest_rooms with the arguments supplied
-        let run_result = manager::compress_largest_rooms(
+        let run_result = manager::compress_chunks_of_database(
             &db_url,
             chunk_size,
             &default_levels.0,
-            number_of_rooms,
+            number_of_chunks,
         );
 
         if let Err(e) = run_result {
