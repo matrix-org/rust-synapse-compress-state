@@ -27,7 +27,7 @@ use std::{env, fs::OpenOptions};
 /// Execution starts here
 fn main() {
     // setup the logger for the auto_compressor
-    // The default can be overwritten with COMPRESSOR_LOG_LEVEL
+    // The default can be overwritten with RUST_LOG
     // see the README for more information
     let log_file = OpenOptions::new()
         .append(true)
@@ -35,7 +35,7 @@ fn main() {
         .open("auto_compressor.log")
         .unwrap_or_else(|e| panic!("Error occured while opening the log file: {}", e));
 
-    if env::var("COMPRESSOR_LOG_LEVEL").is_err() {
+    if env::var("RUST_LOG").is_err() {
         let mut log_builder = env_logger::builder();
         log_builder.target(env_logger::Target::Pipe(Box::new(log_file)));
         // Ensure panics still come through
@@ -46,8 +46,8 @@ fn main() {
         log_builder.filter_module("auto_compressor", LevelFilter::Info);
         log_builder.init();
     } else {
-        // If COMPRESSOR_LOG_LEVEL was set then use that
-        let mut log_builder = env_logger::Builder::from_env("COMPRESSOR_LOG_LEVEL");
+        // If RUST_LOG was set then use that
+        let mut log_builder = env_logger::Builder::from_env("RUST_LOG");
         log_builder.target(env_logger::Target::Pipe(Box::new(log_file)));
         // Ensure panics still come through
         log_builder.filter_module("panic", LevelFilter::Error);
@@ -107,11 +107,11 @@ fn main() {
                 .takes_value(true)
                 .required(false),
         ).arg(
-            Arg::with_name("number_of_rooms")
+            Arg::with_name("number_of_chunks")
                 .short("n")
-                .value_name("ROOMS_TO_COMPRESS")
-                .help("The number of rooms to compress") 
-                .long_help("The top ROOMS_TO_COMPRESS rooms will be compressed ")
+                .value_name("CHUNKS_TO_COMPRESS")
+                .help("The number of chunks to compress") 
+                .long_help("This many chunks of the database will be compressed ")
                 .takes_value(true)
                 .required(true),
         ).get_matches();
@@ -132,10 +132,10 @@ fn main() {
         .unwrap_or_else(|e| panic!("Unable to parse default levels: {}", e));
 
     // The number of rooms to compress with this tool
-    let number_of_rooms = arguments
-        .value_of("number_of_rooms")
-        .map(|s| s.parse().expect("number_of_rooms must be an integer"))
-        .expect("number_of_rooms is required");
+    let number_of_chunks = arguments
+        .value_of("number_of_chunks")
+        .map(|s| s.parse().expect("number_of_chunks must be an integer"))
+        .expect("number_of_chunks is required");
 
     // Connect to the database and create the 2 tables this tool needs
     // (Note: if they already exist then this does nothing)
@@ -146,7 +146,7 @@ fn main() {
 
     // call compress_largest_rooms with the arguments supplied
     // panic if an error is produced
-    manager::compress_largest_rooms(db_url, chunk_size, &default_levels.0, number_of_rooms)
+    manager::compress_chunks_of_database(db_url, chunk_size, &default_levels.0, number_of_chunks)
         .unwrap();
 
     log::info!("auto_compressor finished");
