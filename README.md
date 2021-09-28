@@ -55,7 +55,8 @@ space savings on the chunk as a whole (which may well happen in rooms with lots 
 in) then the entire chunk is skipped.
 
 - -n [CHUNKS_TO_COMPRESS] **Required**  
-*CHUNKS_TO_COMPRESS* chunks of size *CHUNK_SIZE* will be compressed.
+*CHUNKS_TO_COMPRESS* chunks of size *CHUNK_SIZE* will be compressed. The higher this
+number is set to, the longer the compressor will run for.
 
 - -d [LEVELS]  
 Sizes of each new level in the compression algorithm, as a comma-separated list.

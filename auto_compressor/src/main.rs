@@ -115,7 +115,10 @@ fn main() {
                 .short("n")
                 .value_name("CHUNKS_TO_COMPRESS")
                 .help("The number of chunks to compress") 
-                .long_help("This many chunks of the database will be compressed ")
+                .long_help(concat!(
+                    "This many chunks of the database will be compressed. The higher this number is set to, ",
+                    "the longer the compressor will run for."
+                ))
                 .takes_value(true)
                 .required(true),
         ).get_matches();
