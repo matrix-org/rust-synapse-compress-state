@@ -6,9 +6,13 @@
 //! to the database and uses these to enable it to incrementally work
 //! on space reductions
 
+use anyhow::Result;
+use log::{error, LevelFilter};
+use pyo3::{
+    exceptions::PyRuntimeError, prelude::pymodule, types::PyModule, PyErr, PyResult, Python,
+};
 use std::str::FromStr;
 
-use anyhow::Result;
 use synapse_compress_state::Level;
 
 pub mod manager;
@@ -49,4 +53,75 @@ impl FromStr for LevelInfo {
         // Return the built up vector inside a LevelInfo struct
         Ok(LevelInfo(level_info))
     }
+}
+
+// PyO3 INTERFACE STARTS HERE
+#[pymodule]
+fn auto_compressor(_py: Python, m: &PyModule) -> PyResult<()> {
+    let _ = pyo3_log::Logger::default()
+        // don't send out anything lower than a warning from other crates
+        .filter(LevelFilter::Warn)
+        // don't log warnings from synapse_compress_state, the auto_compressor handles these
+        // situations and provides better log messages
+        .filter_target("synapse_compress_state".to_owned(), LevelFilter::Error)
+        // log info and above for the auto_compressor
+        .filter_target("auto_compressor".to_owned(), LevelFilter::Debug)
+        .install();
+    // ensure any panics produce error messages in the log
+    log_panics::init();
+
+    #[pyfn(m, compress_largest_rooms)]
+    fn compress_state_events_table(
+        py: Python,
+        db_url: String,
+        chunk_size: i64,
+        default_levels: String,
+        number_of_chunks: i64,
+    ) -> PyResult<()> {
+        // Stops the compressor from holding the GIL while running
+        py.allow_threads(|| {
+            _compress_state_events_table_body(db_url, chunk_size, default_levels, number_of_chunks)
+        })
+    }
+
+    // Not accessbile through Py03. It is a "private" function.
+    fn _compress_state_events_table_body(
+        db_url: String,
+        chunk_size: i64,
+        default_levels: String,
+        number_of_chunks: i64,
+    ) -> PyResult<()> {
+        // Announce the start of the program to the logs
+        log::info!("auto_compressor started");
+
+        // Parse the default_level string into a LevelInfo struct
+        let default_levels: LevelInfo = match default_levels.parse() {
+            Ok(l_sizes) => l_sizes,
+            Err(e) => {
+                return Err(PyErr::new::<PyRuntimeError, _>(format!(
+                    "Unable to parse level_sizes: {}",
+                    e
+                )))
+            }
+        };
+
+        // call compress_largest_rooms with the arguments supplied
+        let run_result = manager::compress_chunks_of_database(
+            &db_url,
+            chunk_size,
+            &default_levels.0,
+            number_of_chunks,
+        );
+
+        // (Note, need to do `{:?}` formatting to show error context)
+        // Don't log the context of errors but do use it in the PyRuntimeError
+        if let Err(e) = run_result {
+            error!("{}", e);
+            return Err(PyErr::new::<PyRuntimeError, _>(format!("{:?}", e)));
+        }
+
+        log::info!("auto_compressor finished");
+        Ok(())
+    }
+    Ok(())
 }
