@@ -60,7 +60,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "env_logger 0.9.0 (git+https://github.com/TilCreator/env_logger?branch=fix_pipe)",
+ "env_logger",
  "jemallocator",
  "log",
  "log-panics",
@@ -145,7 +145,7 @@ name = "compressor_integration_tests"
 version = "0.1.0"
 dependencies = [
  "auto_compressor",
- "env_logger 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "env_logger",
  "log",
  "openssl",
  "postgres",
@@ -259,18 +259,6 @@ name = "env_logger"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b2cf0344971ee6c64c31be0d530793fba457d322dfec2810c453d0ef228f9c3"
-dependencies = [
- "atty",
- "humantime",
- "log",
- "regex",
- "termcolor",
-]
-
-[[package]]
-name = "env_logger"
-version = "0.9.0"
-source = "git+https://github.com/TilCreator/env_logger?branch=fix_pipe#3d09e0d824d9301cf1c0d4a9f148f8cfeb216329"
 dependencies = [
  "atty",
  "humantime",
@@ -1139,7 +1127,7 @@ name = "synapse_compress_state"
 version = "0.1.0"
 dependencies = [
  "clap",
- "env_logger 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "env_logger",
  "indicatif",
  "jemallocator",
  "log",
