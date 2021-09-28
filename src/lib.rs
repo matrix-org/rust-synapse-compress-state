@@ -20,7 +20,7 @@
 // of arguments - this hopefully doesn't make the code unclear
 // #[allow(clippy::too_many_arguments)] is therefore used around some functions
 
-use log::{info, warn};
+use log::{LevelFilter, info, warn};
 use pyo3::{exceptions, prelude::*};
 
 use clap::{crate_authors, crate_description, crate_name, crate_version, value_t, App, Arg};
@@ -121,11 +121,15 @@ impl Config {
         .arg(
             Arg::with_name("postgres-url")
                 .short("p")
-                .value_name("URL")
-                .help("The url for connecting to the postgres database.")
+                .value_name("POSTGRES_LOCATION")
+                .help("The configruation for connecting to the postgres database.")
                 .long_help(concat!(
-                    "The url for connecting to the postgres database.This should be of",
-                    " the form \"postgresql://username:password@mydomain.com/database\""))
+                    "The configuration for connecting to the Postgres database. This should be of the form ",
+                    r#""postgresql://username:password@mydomain.com/database" or a key-value pair "#,
+                    r#"string: "user=username password=password dbname=database host=mydomain.com" "#,
+                    "See https://docs.rs/tokio-postgres/0.7.2/tokio_postgres/config/struct.Config.html ",
+                    "for the full details."
+                ))
                 .takes_value(true)
                 .required(true),
         ).arg(
@@ -781,6 +785,16 @@ fn run_compression(
 /// Python module - "import synapse_compress_state" to use
 #[pymodule]
 fn synapse_compress_state(_py: Python, m: &PyModule) -> PyResult<()> {
+    let _ = pyo3_log::Logger::default()
+        // don't send out anything lower than a warning from other crates
+        .filter(LevelFilter::Warn)
+        // don't log warnings from synapse_compress_state, the auto_compressor handles these
+        // situations and provides better log messages
+        .filter_target("synapse_compress_state".to_owned(), LevelFilter::Debug)
+        .install();
+    // ensure any panics produce error messages in the log
+    log_panics::init();
+    
     m.add_function(wrap_pyfunction!(run_compression, m)?)?;
     Ok(())
 }

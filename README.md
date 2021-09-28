@@ -113,12 +113,15 @@ takes to query the full state of a given state group.
 ## Introduction:
 
 This tool is significantly more simple to use than the manual tool (described below).
-It will find the rooms with the most uncompressed state in the database and compress those,
-saving where it got up to.
+It scans through all of the rows in the `state_groups` database table from the start. When
+it finds a group that hasn't been compressed, it runs the compressor for a while on that
+group's room, saving where it got up to. After compressing a number of these chunks it stops,
+saving where it got up to for the next run of the `auto_compressor`.
 
-It creates two extra tables in the database: `state_compressor_state` which stores the
-information needed to stop and start the compressor for each room, and `state_compressor_progress`
-which stores the most recently compressed state group for each room.
+It creates three extra tables in the database: `state_compressor_state` which stores the
+information needed to stop and start the compressor for each room, `state_compressor_progress`
+which stores the most recently compressed state group for each room and `state_compressor_total_progress`
+which stores how far through the `state_groups` table the compressor has scanned.
 
 The tool can be run manually when you are running out of space, or be scheduled to run
 periodically.
@@ -138,23 +141,26 @@ This will create an executable and store it in `auto_compressor/target/debug/aut
 
 ## Example usage
 ```
-$ auto_compressor -p postgresql://user:pass@localhost/synapse -c 5000 -l '100,50,25' -n 10
+$ auto_compressor -p postgresql://user:pass@localhost/synapse -c 500 -l '100,50,25' -n 100
 ```
 ## Running Options
 
-- -p [URL] **Required**  
-The URL for connecting to the Postgres database. This should be of the form
-"postgresql://username:password@mydomain.com/database".
+- -p [POSTGRES_LOCATION] **Required**  
+The configuration for connecting to the Postgres database. This should be of the form
+`"postgresql://username:password@mydomain.com/database"` or a key-value pair
+string: `"user=username password=password dbname=database host=mydomain.com"`
+See https://docs.rs/tokio-postgres/0.7.2/tokio_postgres/config/struct.Config.html
+for the full details.
 
-- -c [SIZE] **Required**  
+- -c [CHUNK_SIZE] **Required**  
 The number of state groups to work on at once. All of the entries from state_groups_state are
 requested from the database for state groups that are worked on. Therefore small chunk
 sizes may be needed on machines with low memory. Note: if the compressor fails to find
 space savings on the chunk as a whole (which may well happen in rooms with lots of backfill
 in) then the entire chunk is skipped.
 
-- -n [ROOMS_TO_COMPRESS] **Required**  
-The top *ROOMS_TO_COMPRESS* rooms will be compressed.
+- -n [CHUNKS_TO_COMPRESS] **Required**  
+*CHUNKS_TO_COMPRESS* chunks of size *CHUNK_SIZE* will be compressed.
 
 - -d [LEVELS]  
 Sizes of each new level in the compression algorithm, as a comma-separated list.
@@ -175,9 +181,9 @@ Create the following script and save it somewhere sensible
 cd /home/synapse/rust-synapse-compress-state/
 
 URL=postgresql://user::pass@domain.com/synapse
-CHUNK_SIZE=5000
+CHUNK_SIZE=500
 LEVELS="100,50,25"
-NUMBER_OF_ROOMS=10
+NUMBER_OF_CHUNKS=100
 
 /home/synapse/rust-synapse-compress-state/target/debug/auto_compressor \
 -p $URL \
@@ -200,7 +206,8 @@ Then run `crontab -e` to edit your scheduled tasks and add the following:
 The compressor can also be built into a python library as it uses PyO3. It can be
 built and installed into the current virtual environment by running `maturin develop`:
 
-1. Create a virtual environment in the place you want to use the compressor from  
+1. Create a virtual environment in the place you want to use the compressor from
+(if it doesn't already exist)  
 `$ virtualenv -p python3 venv`
 
 2. Activate the virtual environment  
@@ -218,11 +225,13 @@ import auto_compressor as comp
 
 comp.compress_largest_rooms(
   db_url="postgresql://localhost/synapse",
-  chunk_size=5000,
+  chunk_size=500,
   default_levels="100,50,25",
-  number_of_rooms=10
+  number_of_chunks=100
 )
 ```
+
+To see any output from the compressor, logging must first be setup from Python.
 
 # Manual tool: synapse_compress_state
 
@@ -279,9 +288,12 @@ $ psql synapse < out.data
 
 ## Running Options
 
-- -p [URL] **Required**  
-The URL for connecting to the postgres database. This should be of the form
-"postgresql://username:password@mydomain.com/database".
+- -p [POSTGRES_LOCATION] **Required**  
+The configuration for connecting to the Postgres database. This should be of the form
+`"postgresql://username:password@mydomain.com/database"` or a key-value pair
+string: `"user=username password=password dbname=database host=mydomain.com"`
+See https://docs.rs/tokio-postgres/0.7.2/tokio_postgres/config/struct.Config.html
+for the full details.
 
 - -r [ROOM_ID] **Required**  
 The room to process (this is the value found in the `rooms` table of the database
@@ -320,8 +332,8 @@ still running.
 
 - -c  
 If this flag is set then the changes the compressor makes will be committed to the
-database. This should be safe to use while synapse is running as it assumes by default
-that the transaction flag is set
+database. This should be safe to use while synapse is running as it wraps the changes
+to every state group in it's own transaction (as if the transaction flag was set).
 
 - -g  
 If this flag is set then output the node and edge information for the state_group
@@ -334,7 +346,8 @@ at in something like Gephi (https://gephi.org).
 The compressor can also be built into a python library as it uses PyO3. It can be
 built and installed into the current virtual environment by running `maturin develop`:
 
-1. Create a virtual environment in the place you want to use the compressor from  
+1. Create a virtual environment in the place you want to use the compressor from
+(if it doesn't already exist).  
 `$ virtualenv -p python3 venv`
 
 2. Activate the virtual environment  
@@ -346,8 +359,8 @@ built and installed into the current virtual environment by running `maturin dev
 `$ maturin develop`
 
 
-All the same running options are available, see the comments in the Config struct
-in lib.rs for the names of each argument. All arguments other than `db_url` and `room_id`
+All the same running options are available, see the `Config` struct in `lib.rs`
+for the names of each argument. All arguments other than `db_url` and `room_id`
 are optional.
 
 The following code does exactly the same as the command-line example from above:
@@ -358,10 +371,12 @@ import synapse_compress_state as comp
 comp.run_compression(
   db_url="postgresql://localhost/synapse",
   room_id="!some_room:example.com",
-  output_file=Some("out.sql"),
+  output_file="out.sql",
   transactions=True
 )
 ```
+
+To see any output from the compressor, logging must first be setup from Python.
 
 # Running tests
 
@@ -380,8 +395,11 @@ $ docker-compose down
 
 # Using the synapse_compress_state library
 
-If you want to use the compressor in another project, it is recomended 
-that you use jemalloc `https://github.com/gnzlbg/jemallocator`
+If you want to use the compressor in another project, it is recomended that you
+use jemalloc `https://github.com/gnzlbg/jemallocator`. 
+
+To prevent the progress bars from being shown, use the `no-progress-bars` feature.
+(See `auto_compressor/Cargo.toml` for an example)
 
 # Troubleshooting
 
@@ -410,7 +428,7 @@ Substitute `ADDR` with the IP address of the machine you wish to connect from fo
 an ipv4 address) or `/128` if it's an ipv6 address (e.g. `234.123.42.555/32` or `3a:23:5d::23:37/128`).
 
 If you want to be able to connect from any address (**for testing ONLY**) then you can use
-`0.0.0.0/0` or `::1/0`
+`0.0.0.0/0` or `::/0`
 
 To `/etc/postgresql/12/main/postgresql.conf` add the following:
 
@@ -427,6 +445,9 @@ By default, it tries to connect to a Postgres server running on port 5432. If yo
 database to use a different port then the URL will take the following form:
 
 `postgresql://synapse_user:synapse_password@mydomain:PORT/synapse`
+
+See [the postgres crate documentation](https://docs.rs/tokio-postgres/0.7.2/tokio_postgres/config/struct.Config.html)
+for the full list of options.
 
 ## Printing debugging logs
 
@@ -451,8 +472,8 @@ https://docs.rs/env_logger/0.9.0/env_logger/.
 
 ## Building difficulties
 
-Building the `openssl-sys` crate requires OpenSSL development tools to be installed, and
-building on Linux will also require `pkg-config`
+Building the `openssl-sys` dependency crate requires OpenSSL development tools to be installed,
+and building on Linux will also require `pkg-config`
 
 This can be done on Ubuntu  with: `$ apt-get install libssl-dev pkg-config`
 
@@ -461,16 +482,15 @@ obvious. It's recomended you only build these tools on machines with at least 2G
 
 ## Auto Compressor skips chunks when running on already compressed room
 
-If you delete the `state_compressor_state` or `state_compressor_progress` tables from the
-database, the compressor will attempt to compress from the start again. With certain config
-options, this will lead to lots of warnings of the form: `The compressor tried to increase 
-the number of rows in ...`
+If you have used the compressor before, with certain config options, the automatic tool will
+produce lots of warnings of the form: `The compressor tried to increase the number of rows in ...`
 
-To fix this ensure that the chunk_size is set to at least the L1 level size (so if the level
+To fix this, ensure that the chunk_size is set to at least the L1 level size (so if the level
 sizes are "100,50,25" then the chunk_size should be at least 100).
 
 Note: if the level sizes being used when rerunning are different to when run previously
-this may lead to less efficient compression and thus chunks being skipped.
+this might lead to less efficient compression and thus chunks being skipped, but this shouldn't
+be a large problem.
 
 ## Compressor is trying to increase the number of rows
 
