@@ -37,7 +37,6 @@ fn main() {
 
     if env::var("RUST_LOG").is_err() {
         let mut log_builder = env_logger::builder();
-        log_builder.target(env_logger::Target::Pipe(Box::new(log_file)));
         // Ensure panics still come through
         log_builder.filter_module("panic", LevelFilter::Error);
         // Only output errors from the synapse_compress state library

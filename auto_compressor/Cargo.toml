@@ -15,7 +15,7 @@ jemallocator = "0.3.2"
 rand = "0.8.0"
 serial_test = "0.5.1"
 synapse_compress_state = { path = "../", features = ["no-progress-bars"] }
-env_logger = { version = "0.9.0", git = "https://github.com/TilCreator/env_logger", branch = "fix_pipe" }
+env_logger = "0.9.0"
 log = "0.4.14"
 log-panics = "2.0.0"
 anyhow = "1.0.42"
