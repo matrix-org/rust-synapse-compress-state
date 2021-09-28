@@ -21,9 +21,6 @@ which stores how far through the `state_groups` table the compressor has scanned
 The tool can be run manually when you are running out of space, or be scheduled to run
 periodically.
 
-The output from the auto_compressor will be sent to `auto_compressor.log` (in the directory
-that the compressor is run from).
-
 ## Building 
 
 This tool requires `cargo` to be installed. See https://www.rust-lang.org/tools/install
