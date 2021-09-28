@@ -20,7 +20,7 @@
 // of arguments - this hopefully doesn't make the code unclear
 // #[allow(clippy::too_many_arguments)] is therefore used around some functions
 
-use log::{LevelFilter, info, warn};
+use log::{info, warn, LevelFilter};
 use pyo3::{exceptions, prelude::*};
 
 use clap::{crate_authors, crate_description, crate_name, crate_version, value_t, App, Arg};
@@ -794,7 +794,7 @@ fn synapse_compress_state(_py: Python, m: &PyModule) -> PyResult<()> {
         .install();
     // ensure any panics produce error messages in the log
     log_panics::init();
-    
+
     m.add_function(wrap_pyfunction!(run_compression, m)?)?;
     Ok(())
 }
