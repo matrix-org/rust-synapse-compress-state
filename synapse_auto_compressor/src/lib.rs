@@ -57,15 +57,16 @@ impl FromStr for LevelInfo {
 
 // PyO3 INTERFACE STARTS HERE
 #[pymodule]
-fn auto_compressor(_py: Python, m: &PyModule) -> PyResult<()> {
+fn synapse_auto_compressor(_py: Python, m: &PyModule) -> PyResult<()> {
     let _ = pyo3_log::Logger::default()
         // don't send out anything lower than a warning from other crates
         .filter(LevelFilter::Warn)
-        // don't log warnings from synapse_compress_state, the auto_compressor handles these
-        // situations and provides better log messages
+        // don't log warnings from synapse_compress_state, the
+        // synapse_auto_compressor handles these situations and provides better
+        // log messages
         .filter_target("synapse_compress_state".to_owned(), LevelFilter::Error)
-        // log info and above for the auto_compressor
-        .filter_target("auto_compressor".to_owned(), LevelFilter::Debug)
+        // log info and above for the synapse_auto_compressor
+        .filter_target("synapse_auto_compressor".to_owned(), LevelFilter::Debug)
         .install();
     // ensure any panics produce error messages in the log
     log_panics::init();
@@ -92,7 +93,7 @@ fn auto_compressor(_py: Python, m: &PyModule) -> PyResult<()> {
         number_of_chunks: i64,
     ) -> PyResult<()> {
         // Announce the start of the program to the logs
-        log::info!("auto_compressor started");
+        log::info!("synapse_auto_compressor started");
 
         // Parse the default_level string into a LevelInfo struct
         let default_levels: LevelInfo = match default_levels.parse() {
@@ -120,7 +121,7 @@ fn auto_compressor(_py: Python, m: &PyModule) -> PyResult<()> {
             return Err(PyErr::new::<PyRuntimeError, _>(format!("{:?}", e)));
         }
 
-        log::info!("auto_compressor finished");
+        log::info!("synapse_auto_compressor finished");
         Ok(())
     }
     Ok(())
