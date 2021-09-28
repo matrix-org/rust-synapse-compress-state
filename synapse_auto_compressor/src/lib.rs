@@ -57,7 +57,7 @@ impl FromStr for LevelInfo {
 
 // PyO3 INTERFACE STARTS HERE
 #[pymodule]
-fn auto_compressor(_py: Python, m: &PyModule) -> PyResult<()> {
+fn synapse_auto_compressor(_py: Python, m: &PyModule) -> PyResult<()> {
     let _ = pyo3_log::Logger::default()
         // don't send out anything lower than a warning from other crates
         .filter(LevelFilter::Warn)
