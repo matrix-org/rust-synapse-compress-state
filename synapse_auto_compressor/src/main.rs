@@ -26,13 +26,13 @@ use synapse_auto_compressor::{manager, state_saving, LevelInfo};
 
 /// Execution starts here
 fn main() {
-    // setup the logger for the auto_compressor
+    // setup the logger for the synapse_auto_compressor
     // The default can be overwritten with RUST_LOG
     // see the README for more information
     let log_file = OpenOptions::new()
         .append(true)
         .create(true)
-        .open("auto_compressor.log")
+        .open("synapse_auto_compressor.log")
         .unwrap_or_else(|e| panic!("Error occured while opening the log file: {}", e));
 
     if env::var("RUST_LOG").is_err() {
@@ -41,8 +41,8 @@ fn main() {
         log_builder.filter_module("panic", LevelFilter::Error);
         // Only output errors from the synapse_compress state library
         log_builder.filter_module("synapse_compress_state", LevelFilter::Error);
-        // Output log levels info and above from auto_compressor
-        log_builder.filter_module("auto_compressor", LevelFilter::Info);
+        // Output log levels info and above from synapse_auto_compressor
+        log_builder.filter_module("synapse_auto_compressor", LevelFilter::Info);
         log_builder.init();
     } else {
         // If RUST_LOG was set then use that
@@ -54,7 +54,7 @@ fn main() {
     }
     log_panics::init();
     // Announce the start of the program to the logs
-    log::info!("auto_compressor started");
+    log::info!("synapse_auto_compressor started");
 
     // parse the command line arguments using the clap crate
     let arguments = App::new(crate_name!())
@@ -113,7 +113,7 @@ fn main() {
             Arg::with_name("number_of_chunks")
                 .short("n")
                 .value_name("CHUNKS_TO_COMPRESS")
-                .help("The number of chunks to compress") 
+                .help("The number of chunks to compress")
                 .long_help(concat!(
                     "This many chunks of the database will be compressed. The higher this number is set to, ",
                     "the longer the compressor will run for."
@@ -155,5 +155,5 @@ fn main() {
     manager::compress_chunks_of_database(db_url, chunk_size, &default_levels.0, number_of_chunks)
         .unwrap();
 
-    log::info!("auto_compressor finished");
+    log::info!("synapse_auto_compressor finished");
 }

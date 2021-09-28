@@ -179,7 +179,7 @@ fn collapse_state_with_database(state_group: i64) -> StateMap<Atom> {
     // the predecessor (so have split this into a different query)
     let query_pred = r#"
         SELECT prev_state_group
-        FROM state_group_edges 
+        FROM state_group_edges
         WHERE state_group = $1
     "#;
 
@@ -243,7 +243,7 @@ pub fn database_structure_matches_map(state_group_map: &BTreeMap<i64, StateGroup
     // the predecessor (so have split this into a different query)
     let query_pred = r#"
         SELECT prev_state_group
-        FROM state_group_edges 
+        FROM state_group_edges
         WHERE state_group = $1
     "#;
 
@@ -356,7 +356,7 @@ fn functions_are_self_consistent() {
 }
 
 pub fn setup_logger() {
-    // setup the logger for the auto_compressor
+    // setup the logger for the synapse_auto_compressor
     // The default can be overwritten with RUST_LOG
     // see the README for more information
     if env::var("RUST_LOG").is_err() {
@@ -366,7 +366,7 @@ pub fn setup_logger() {
         // default to printing the debug information for both packages being tested
         // (Note that just setting the global level to debug will log every sql transaction)
         log_builder.filter_module("synapse_compress_state", LevelFilter::Debug);
-        log_builder.filter_module("auto_compressor", LevelFilter::Debug);
+        log_builder.filter_module("synapse_auto_compressor", LevelFilter::Debug);
         // use try_init() incase the logger has been setup by some previous test
         let _ = log_builder.try_init();
     } else {
