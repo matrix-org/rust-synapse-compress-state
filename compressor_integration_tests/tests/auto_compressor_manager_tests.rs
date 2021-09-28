@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use auto_compressor::{
+use synapse_auto_compressor::{
     manager::{compress_chunks_of_database, run_compressor_on_room_chunk},
     state_saving::{connect_to_database, create_tables_if_needed},
 };
