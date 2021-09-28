@@ -1,9 +1,9 @@
-use auto_compressor::state_saving::{
+use compressor_integration_tests::{clear_compressor_state, setup_logger, DB_URL};
+use serial_test::serial;
+use synapse_auto_compressor::state_saving::{
     connect_to_database, create_tables_if_needed, read_room_compressor_state,
     write_room_compressor_state,
 };
-use compressor_integration_tests::{clear_compressor_state, setup_logger, DB_URL};
-use serial_test::serial;
 use synapse_compress_state::Level;
 
 #[test]

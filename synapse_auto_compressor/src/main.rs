@@ -19,10 +19,10 @@
 #[global_allocator]
 static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
-use auto_compressor::{manager, state_saving, LevelInfo};
 use clap::{crate_authors, crate_description, crate_name, crate_version, value_t, App, Arg};
 use log::LevelFilter;
 use std::{env, fs::OpenOptions};
+use synapse_auto_compressor::{manager, state_saving, LevelInfo};
 
 /// Execution starts here
 fn main() {

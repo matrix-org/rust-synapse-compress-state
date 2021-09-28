@@ -1,5 +1,5 @@
 [package]
-name = "auto_compressor"
+name = "synapse_auto_compressor"
 authors = ["William Ashton"]
 version = "0.1.0"
 edition = "2018"

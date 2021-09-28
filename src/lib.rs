@@ -788,7 +788,7 @@ fn synapse_compress_state(_py: Python, m: &PyModule) -> PyResult<()> {
     let _ = pyo3_log::Logger::default()
         // don't send out anything lower than a warning from other crates
         .filter(LevelFilter::Warn)
-        // don't log warnings from synapse_compress_state, the auto_compressor handles these
+        // don't log warnings from synapse_compress_state, the synapse_auto_compressor handles these
         // situations and provides better log messages
         .filter_target("synapse_compress_state".to_owned(), LevelFilter::Debug)
         .install();

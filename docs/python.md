@@ -18,7 +18,7 @@ the compressor is run.
 
 3. Navigate to the correct location  
 For the automatic tool:  
-`$ cd /home/synapse/rust-synapse-compress-state/auto_compressor`   
+`$ cd /home/synapse/rust-synapse-compress-state/synpase_auto_compressor`   
 For the manual tool:  
 `$ cd /home/synapse/rust-synapse-compress-state`   
 
@@ -30,9 +30,9 @@ This will install the relevant compressor tool into the activated virtual enviro
 ## Automatic tool example:
 
 ```python
-import auto_compressor
+import synapse_auto_compressor
 
-auto_compressor.compress_state_events_table(
+synapse_auto_compressor.compress_state_events_table(
   db_url="postgresql://localhost/synapse",
   chunk_size=500,
   default_levels="100,50,25",

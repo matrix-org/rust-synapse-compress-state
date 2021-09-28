@@ -55,26 +55,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "auto_compressor"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "env_logger",
- "jemallocator",
- "log",
- "log-panics",
- "openssl",
- "postgres",
- "postgres-openssl",
- "pyo3",
- "pyo3-log",
- "rand",
- "serial_test",
- "synapse_compress_state",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -144,7 +124,6 @@ dependencies = [
 name = "compressor_integration_tests"
 version = "0.1.0"
 dependencies = [
- "auto_compressor",
  "env_logger",
  "log",
  "openssl",
@@ -154,6 +133,7 @@ dependencies = [
  "serial_test",
  "state-map",
  "string_cache",
+ "synapse_auto_compressor",
  "synapse_compress_state",
 ]
 
@@ -1120,6 +1100,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-xid",
+]
+
+[[package]]
+name = "synapse_auto_compressor"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "env_logger",
+ "jemallocator",
+ "log",
+ "log-panics",
+ "openssl",
+ "postgres",
+ "postgres-openssl",
+ "pyo3",
+ "pyo3-log",
+ "rand",
+ "serial_test",
+ "synapse_compress_state",
 ]
 
 [[package]]

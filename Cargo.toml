@@ -1,5 +1,5 @@
 [workspace]
-members = ["auto_compressor", "compressor_integration_tests"]
+members = ["synapse_auto_compressor", "compressor_integration_tests"]
 
 [package]
 authors = ["Erik Johnston"]

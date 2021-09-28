@@ -3,7 +3,7 @@
 This workspace contains experimental tools that attempt to reduce the number of
 rows in the `state_groups_state` table inside of a Synapse Postgresql database.
 
-# Automated tool: auto_compressor
+# Automated tool: synapse_auto_compressor
 
 ## Introduction:
 
@@ -11,7 +11,7 @@ This tool is significantly more simple to use than the manual tool (described be
 It scans through all of the rows in the `state_groups` database table from the start. When
 it finds a group that hasn't been compressed, it runs the compressor for a while on that
 group's room, saving where it got up to. After compressing a number of these chunks it stops,
-saving where it got up to for the next run of the `auto_compressor`.
+saving where it got up to for the next run of the `synapse_auto_compressor`.
 
 It creates three extra tables in the database: `state_compressor_state` which stores the
 information needed to stop and start the compressor for each room, `state_compressor_progress`
@@ -26,14 +26,15 @@ periodically.
 This tool requires `cargo` to be installed. See https://www.rust-lang.org/tools/install
 for instructions on how to do this.
 
-To build `auto_compressor`, clone this repository and navigate to the `autocompressor/` 
-subdirectory. Then execute `cargo build`.
+To build `synapse_auto_compressor`, clone this repository and navigate to the
+`synapse_auto_compressor/` subdirectory. Then execute `cargo build`.
 
-This will create an executable and store it in `auto_compressor/target/debug/auto_compressor`.
+This will create an executable and store it in
+`synapse_auto_compressor/target/debug/auto_compressor`.
 
 ## Example usage
 ```
-$ auto_compressor -p postgresql://user:pass@localhost/synapse -c 500 -n 100
+$ synapse_auto_compressor -p postgresql://user:pass@localhost/synapse -c 500 -n 100
 ```
 ## Running Options
 
@@ -199,7 +200,7 @@ If you want to use the compressor in another project, it is recomended that you
 use jemalloc `https://github.com/gnzlbg/jemallocator`. 
 
 To prevent the progress bars from being shown, use the `no-progress-bars` feature.
-(See `auto_compressor/Cargo.toml` for an example)
+(See `synapse_auto_compressor/Cargo.toml` for an example)
 
 # Troubleshooting
 
@@ -225,17 +226,17 @@ setting in [`postgresql.conf`](https://www.postgresql.org/docs/current/runtime-c
 The amount of output the tools produce can be altered by setting the RUST_LOG 
 environment variable to something. 
 
-To get more logs when running the auto_compressor tool try the following:
+To get more logs when running the synapse_auto_compressor tool try the following:
 
 ```
-$ RUST_LOG=debug auto_compressor -p postgresql://user:pass@localhost/synapse -c 50 -n 100
+$ RUST_LOG=debug synapse_auto_compressor -p postgresql://user:pass@localhost/synapse -c 50 -n 100
 ```
 
 If you want to suppress all the debugging info you are getting from the 
 Postgres client then try:
 
 ```
-RUST_LOG=auto_compressor=debug,synapse_compress_state=debug auto_compressor [etc.]
+RUST_LOG=synapse_auto_compressor=debug,synapse_compress_state=debug synapse_auto_compressor [etc.]
 ```
 
 This will only print the debugging information from those two packages. For more info see 
@@ -265,7 +266,7 @@ be a large problem.
 
 ## Compressor is trying to increase the number of rows
 
-Backfilling can lead to issues with compression. The auto_compressor will
+Backfilling can lead to issues with compression. The synapse_auto_compressor will
 skip chunks it can't reduce the size of and so this should help jump over the backfilled 
 state_groups. Lots of state resolution might also impact the ability to use the compressor.
 
