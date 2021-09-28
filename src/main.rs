@@ -29,7 +29,7 @@ use synapse_compress_state as comp_state;
 fn main() {
     // setup the logger
     // The default can be overwritten with RUST_LOG
-    // see the README for more information <---- TODO
+    // see the README for more information
     if env::var("RUST_LOG").is_err() {
         let mut log_builder = env_logger::builder();
         // Only output the log message (and not the prefixed timestamp etc.)

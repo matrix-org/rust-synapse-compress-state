@@ -65,11 +65,15 @@ fn main() {
         .arg(
             Arg::with_name("postgres-url")
                 .short("p")
-                .value_name("URL")
-                .help("The url for connecting to the postgres database.")
+                .value_name("POSTGRES_LOCATION")
+                .help("The configruation for connecting to the postgres database.")
                 .long_help(concat!(
-                    "The url for connecting to the postgres database.This should be of",
-                    " the form \"postgresql://username:password@mydomain.com/database\""))
+                    "The configuration for connecting to the Postgres database. This should be of the form ",
+                    r#""postgresql://username:password@mydomain.com/database" or a key-value pair "#,
+                    r#"string: "user=username password=password dbname=database host=mydomain.com" "#,
+                    "See https://docs.rs/tokio-postgres/0.7.2/tokio_postgres/config/struct.Config.html ",
+                    "for the full details."
+                ))
                 .takes_value(true)
                 .required(true),
         ).arg(
@@ -111,7 +115,10 @@ fn main() {
                 .short("n")
                 .value_name("CHUNKS_TO_COMPRESS")
                 .help("The number of chunks to compress") 
-                .long_help("This many chunks of the database will be compressed ")
+                .long_help(concat!(
+                    "This many chunks of the database will be compressed. The higher this number is set to, ",
+                    "the longer the compressor will run for."
+                ))
                 .takes_value(true)
                 .required(true),
         ).get_matches();

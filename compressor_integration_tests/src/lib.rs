@@ -358,7 +358,7 @@ fn functions_are_self_consistent() {
 pub fn setup_logger() {
     // setup the logger for the auto_compressor
     // The default can be overwritten with RUST_LOG
-    // see the README for more information <--- TODO
+    // see the README for more information
     if env::var("RUST_LOG").is_err() {
         let mut log_builder = env_logger::builder();
         // set is_test(true) so that the output is hidden by cargo test (unless the test fails)
