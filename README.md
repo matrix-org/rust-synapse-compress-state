@@ -36,7 +36,7 @@ This will create an executable and store it in `auto_compressor/target/debug/aut
 
 ## Example usage
 ```
-$ auto_compressor -p postgresql://user:pass@localhost/synapse -c 500 -l '100,50,25' -n 100
+$ auto_compressor -p postgresql://user:pass@localhost/synapse -c 500 -n 100
 ```
 ## Running Options
 
