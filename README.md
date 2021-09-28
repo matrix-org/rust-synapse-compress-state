@@ -3,111 +3,6 @@
 This workspace contains experimental tools that attempt to reduce the number of
 rows in the `state_groups_state` table inside of a Synapse Postgresql database.
 
-# Introduction to the state tables and compression
-
-## What is state?
-State is things like who is in a room, what the room topic/name is, who has
-what privilege levels etc. Synapse keeps track of it so that it can spot invalid
-events (e.g. ones sent by banned users, or by people with insufficient privilege).
-
-## What is a state group?
-
-Synapse needs to keep track of the state at the moment of each event. A state group
-corresponds to a unique state. The database table `event_to_state_groups` keeps track
-of the mapping from event ids to state group ids.
-
-Consider the following simplified example:
-```
-State group id   |          State
-_____________________________________________
-       1         |      Alice in room
-       2         | Alice in room, Bob in room
-       3         |        Bob in room
-
-
-Event id |     What the event was
-______________________________________
-    1    |    Alice sends a message
-    3    |     Bob joins the room
-    4    |     Bob sends a message
-    5    |    Alice leaves the room
-    6    |     Bob sends a message
-
-
-Event id | State group id
-_________________________
-    1    |       1
-    2    |       1
-    3    |       2
-    4    |       2
-    5    |       3
-    6    |       3
-```
-## What are deltas and predecessors?
-When a new state event happens (e.g. Bob joins the room) a new state group is created.
-BUT instead of copying all of the state from the previous state group, we just store
-the change from the previous group (saving on lots of storage space!). The difference
-from the previous state group is called the "delta".
-
-So for the previous example, we would have the following (Note only rows 1 and 2 will
-make sense at this point):
-
-```
-State group id | Previous state group id |      Delta
-____________________________________________________________
-       1       |          NONE           |   Alice in room
-       2       |           1             |    Bob in room
-       3       |          NONE           |    Bob in room
-```
-So why is state group 3's previous state group NONE and not 2? Well, the way that deltas
-work in Synapse is that they can only add in new state or overwrite old state, but they
-cannot remove it. (So if the room topic is changed then that is just overwriting state,
-but removing Alice from the room is neither an addition nor an overwriting). If it is
-impossible to find a delta, then you just start from scratch again with a "snapshot" of
-the entire state. 
-
-(NOTE this is not documentation on how synapse handles leaving rooms but is purely for illustrative
-purposes)
-
-The state of a state group is worked out by following the previous state group's and adding
-together all of the deltas (with the most recent taking precedence).
-
-The mapping from state group to previous state group takes place in `state_group_edges`
-and the deltas are stored in `state_groups_state`.
-
-## What are we compressing then?
-In order to speed up the conversion from state group id to state, there is a limit of 100 
-hops set by synapse (that is: we will only ever have to look up the deltas for a maximum of 
-100 state groups). It does this by taking another "snapshot" every 100 state groups.
-
-However, it is these snapshots that take up the bulk of the storage in a synapse database,
-so we want to find a way to reduce the number of them without dramatically increasing the
-maximum number of hops needed to do lookups.
-
-
-## Compression Algorithm
-
-The algorithm works by attempting to create a *tree* of deltas, produced by
-appending state groups to different "levels". Each level has a maximum size, where
-each state group is appended to the lowest level that is not full. This tool calls a 
-state group "compressed" once it has been added to
-one of these levels.
-
-This produces a graph that looks approximately like the following, in the case
-of having two levels with the bottom level (L1) having a maximum size of 3:
-
-```
-L2 <-------------------- L2 <---------- ...
-^--- L1 <--- L1 <--- L1  ^--- L1 <--- L1 <--- L1
-
-NOTE: A <--- B means that state group B's predecessor is A
-```
-The structure that synapse creates by default would be equivalent to having one level with
-a maximum length of 100. 
-
-**Note**: Increasing the sum of the sizes of levels will increase the time it
-takes to query the full state of a given state group.
-
 # Automated tool: auto_compressor
 
 ## Introduction:
@@ -172,66 +67,10 @@ sum of the sizes is the upper bound on the number of iterations needed to fetch 
 given set of state. [defaults to "100,50,25"]
 
 ## Scheduling the compressor
-Create the following script and save it somewhere sensible
-(e.g. `/home/synapse/compress.sh`)
-
-```
-#!/bin/bash
-
-cd /home/synapse/rust-synapse-compress-state/
-
-URL=postgresql://user::pass@domain.com/synapse
-CHUNK_SIZE=500
-LEVELS="100,50,25"
-NUMBER_OF_CHUNKS=100
-
-/home/synapse/rust-synapse-compress-state/target/debug/auto_compressor \
--p $URL \
--c $CHUNK_SIZE \
--l $LEVELS \
--n $NUMBER_OF_ROOMS
-```
-
-Make it executable with `chmod +x compress.sh`
-
-Then run `crontab -e` to edit your scheduled tasks and add the following:
-
-```
-# Run every day at 3:00am
-00 3 * * * /home/synapse/compress.sh
-```
-
-## Using as a python library
-
-The compressor can also be built into a python library as it uses PyO3. It can be
-built and installed into the current virtual environment by running `maturin develop`:
-
-1. Create a virtual environment in the place you want to use the compressor from
-(if it doesn't already exist)  
-`$ virtualenv -p python3 venv`
-
-2. Activate the virtual environment  
-`$ source venv/bin/activate`
-
-3. Build and install the library  
-`$ cd /home/synapse/rust-synapse-compress-state/auto_compressor`  
-`$ pip install maturin`  
-`$ maturin develop`
-
-The following code does exactly the same as the command-line example from above:
-
-```python
-import auto_compressor as comp
-
-comp.compress_largest_rooms(
-  db_url="postgresql://localhost/synapse",
-  chunk_size=500,
-  default_levels="100,50,25",
-  number_of_chunks=100
-)
-```
-
-To see any output from the compressor, logging must first be setup from Python.
+The automatic tool may put some strain on the database, so it might be best to schedule
+it to run at a quiet time for the server. This could be done by creating an executable
+script and scheduling it with something like 
+[cron](https://www.man7.org/linux/man-pages/man1/crontab.1.html).
 
 # Manual tool: synapse_compress_state
 
@@ -341,43 +180,6 @@ directed graph built up from the predecessor state_group links. These can be loo
 at in something like Gephi (https://gephi.org).
 
 
-## Using as Python library
-
-The compressor can also be built into a python library as it uses PyO3. It can be
-built and installed into the current virtual environment by running `maturin develop`:
-
-1. Create a virtual environment in the place you want to use the compressor from
-(if it doesn't already exist).  
-`$ virtualenv -p python3 venv`
-
-2. Activate the virtual environment  
-`$ source venv/bin/activate`
-
-3. Build and install the library  
-`$ cd /home/synapse/rust-synapse-compress-state`  
-`$ pip install maturin`  
-`$ maturin develop`
-
-
-All the same running options are available, see the `Config` struct in `lib.rs`
-for the names of each argument. All arguments other than `db_url` and `room_id`
-are optional.
-
-The following code does exactly the same as the command-line example from above:
-
-```python
-import synapse_compress_state as comp
-
-comp.run_compression(
-  db_url="postgresql://localhost/synapse",
-  room_id="!some_room:example.com",
-  output_file="out.sql",
-  transactions=True
-)
-```
-
-To see any output from the compressor, logging must first be setup from Python.
-
 # Running tests
 
 There are integration tests for these tools stored in `compressor_integration_tests/`.
@@ -416,55 +218,26 @@ from the machine where Postgres is running, the url will be the following:
 ### From remote machine
 
 If you wish to connect from a different machine, you'll need to edit your Postgres settings to allow
-remote connections.
-
-To `/etc/postgresql/12/main/pg_hba.conf` add the following:
-
-```
-#   TYPE    DATABASE  USER            ADDRESS    METHOD
-    host    synapse   synapse_user    ADDR        md5
-```
-Substitute `ADDR` with the IP address of the machine you wish to connect from followed by `/32` (if it is
-an ipv4 address) or `/128` if it's an ipv6 address (e.g. `234.123.42.555/32` or `3a:23:5d::23:37/128`).
-
-If you want to be able to connect from any address (**for testing ONLY**) then you can use
-`0.0.0.0/0` or `::/0`
-
-To `/etc/postgresql/12/main/postgresql.conf` add the following:
-
-```
-listen_addresses = 'localhost, IP_ADDR'
-```
-Substitute `IP_ADDR` with your ip address (WITHOUT the `/32` or `/128` that was used in `pg_hba.conf`).
-
-If you want to allow connections from any address (**for testing ONLY**) then substitute `IP_ADDR` with `*`
-
-### Non default port
-
-By default, it tries to connect to a Postgres server running on port 5432. If you have configured your
-database to use a different port then the URL will take the following form:
-
-`postgresql://synapse_user:synapse_password@mydomain:PORT/synapse`
-
-See [the postgres crate documentation](https://docs.rs/tokio-postgres/0.7.2/tokio_postgres/config/struct.Config.html)
-for the full list of options.
+remote connections. This requires updating the 
+[`pg_hba.conf`](https://www.postgresql.org/docs/current/auth-pg-hba-conf.html) and the `listen_addresses`
+setting in [`postgresql.conf`](https://www.postgresql.org/docs/current/runtime-config-connection.html)
 
 ## Printing debugging logs
 
-The amount of output the tools produce can be altered by setting the COMPRESSOR_LOG_LEVEL 
+The amount of output the tools produce can be altered by setting the RUST_LOG 
 environment variable to something. 
 
 To get more logs when running the auto_compressor tool try the following:
 
 ```
-$ COMPRESSOR_LOG_LEVEL=debug auto_compressor -p postgresql://user:pass@localhost/synapse -c 5 -l '100,50,25' -n 5000
+$ RUST_LOG=debug auto_compressor -p postgresql://user:pass@localhost/synapse -c 50 -n 100
 ```
 
 If you want to suppress all the debugging info you are getting from the 
 Postgres client then try:
 
 ```
-COMPRESSOR_LOG_LEVEL=auto_compressor=debug,synapse_compress_state=debug auto_compressor [etc.]
+RUST_LOG=auto_compressor=debug,synapse_compress_state=debug auto_compressor [etc.]
 ```
 
 This will only print the debugging information from those two packages. For more info see 
