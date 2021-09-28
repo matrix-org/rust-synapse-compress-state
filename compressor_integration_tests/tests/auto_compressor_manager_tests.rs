@@ -1,9 +1,5 @@
 use std::collections::BTreeMap;
 
-use synapse_auto_compressor::{
-    manager::{compress_chunks_of_database, run_compressor_on_room_chunk},
-    state_saving::{connect_to_database, create_tables_if_needed},
-};
 use compressor_integration_tests::{
     add_contents_to_database, clear_compressor_state, database_collapsed_states_match_map,
     database_structure_matches_map, empty_database,
@@ -14,6 +10,10 @@ use compressor_integration_tests::{
     setup_logger, DB_URL,
 };
 use serial_test::serial;
+use synapse_auto_compressor::{
+    manager::{compress_chunks_of_database, run_compressor_on_room_chunk},
+    state_saving::{connect_to_database, create_tables_if_needed},
+};
 use synapse_compress_state::Level;
 
 #[test]
