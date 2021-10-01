@@ -197,7 +197,7 @@ $ docker-compose down
 # Using the synapse_compress_state library
 
 If you want to use the compressor in another project, it is recomended that you
-use jemalloc `https://github.com/gnzlbg/jemallocator`.
+use jemalloc `https://github.com/tikv/jemallocator`.
 
 To prevent the progress bars from being shown, use the `no-progress-bars` feature.
 (See `synapse_auto_compressor/Cargo.toml` for an example)
