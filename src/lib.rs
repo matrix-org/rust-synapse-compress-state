@@ -109,6 +109,9 @@ pub struct Config {
     // Whether or not to commit changes to the database automatically
     // N.B. currently assumes transactions is true (to be on the safe side)
     commit_changes: bool,
+    // Whether to verify the correctness of the compressed state groups by
+    // comparing them to the original groups
+    verify: bool,
 }
 
 impl Config {
@@ -223,6 +226,13 @@ impl Config {
                 .long_help(concat!("If this flag is set then the changes the compressor makes will",
                     " be committed to the database. This should be safe to use while synapse is running",
                     " as it assumes by default that the transactions flag is set")),
+        ).arg(
+            Arg::with_name("no_verify")
+                .short("N")
+                .help("Do not double-check that the compression was performed correctly")
+                .long_help(concat!("If this flag is set then the verification of the compressed",
+                    " state groups, which compares them to the original groups, is skipped. This",
+                    " saves time at the cost of potentially generating mismatched state.")),
         ).get_matches();
 
         let db_url = matches
@@ -262,6 +272,8 @@ impl Config {
 
         let commit_changes = matches.is_present("commit_changes");
 
+        let verify = !matches.is_present("no_verify");
+
         Config {
             db_url: String::from(db_url),
             output_file,
@@ -274,6 +286,7 @@ impl Config {
             transactions,
             graphs,
             commit_changes,
+            verify,
         }
     }
 }
@@ -372,7 +385,9 @@ pub fn run(mut config: Config) {
         }
     }
 
-    check_that_maps_match(&state_group_map, new_state_group_map);
+    if config.verify {
+        check_that_maps_match(&state_group_map, new_state_group_map);
+    }
 
     // If we are given an output file, we output the changes as SQL. If the
     // `transactions` argument is set we wrap each change to a state group in a
@@ -695,6 +710,7 @@ impl Config {
         transactions: bool,
         graphs: bool,
         commit_changes: bool,
+        verify: bool,
     ) -> Result<Config, String> {
         let mut output: Option<File> = None;
         if let Some(file) = output_file {
@@ -722,6 +738,7 @@ impl Config {
             transactions,
             graphs,
             commit_changes,
+            verify,
         })
     }
 }
@@ -746,6 +763,7 @@ impl Config {
     transactions = true,
     graphs = false,
     commit_changes = false,
+    verify = true,
 )]
 fn run_compression(
     db_url: String,
@@ -759,6 +777,7 @@ fn run_compression(
     transactions: bool,
     graphs: bool,
     commit_changes: bool,
+    verify: bool,
 ) -> PyResult<()> {
     let config = Config::new(
         db_url,
@@ -772,6 +791,7 @@ fn run_compression(
         transactions,
         graphs,
         commit_changes,
+        verify,
     );
     match config {
         Err(e) => Err(PyErr::new::<exceptions::PyException, _>(e)),
@@ -1224,6 +1244,7 @@ mod pyo3_tests {
         let transactions = false;
         let graphs = false;
         let commit_changes = false;
+        let verify = true;
 
         let config = Config::new(
             db_url.clone(),
@@ -1237,6 +1258,7 @@ mod pyo3_tests {
             transactions,
             graphs,
             commit_changes,
+            verify,
         )
         .unwrap();
 
@@ -1270,6 +1292,7 @@ mod pyo3_tests {
         let transactions = true;
         let graphs = true;
         let commit_changes = true;
+        let verify = true;
 
         let config = Config::new(
             db_url.clone(),
@@ -1283,6 +1306,7 @@ mod pyo3_tests {
             transactions,
             graphs,
             commit_changes,
+            verify,
         )
         .unwrap();
 
