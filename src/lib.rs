@@ -27,7 +27,7 @@ use clap::{crate_authors, crate_description, crate_name, crate_version, value_t,
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use state_map::StateMap;
-use std::{collections::BTreeMap, fs::File, io::Write, str::FromStr};
+use std::{collections::BTreeMap, convert::TryInto, fs::File, io::Write, str::FromStr};
 use string_cache::DefaultAtom as Atom;
 
 mod compressor;
@@ -162,7 +162,7 @@ impl Config {
             Arg::with_name("groups_to_compress")
                 .short("n")
                 .value_name("GROUPS_TO_COMPRESS")
-                .help("How many groups to load into memory to compress") 
+                .help("How many groups to load into memory to compress")
                 .long_help(concat!(
                     "How many groups to load into memory to compress (starting from",
                     " the 1st group in the room or the group specified by -s)"))
@@ -362,8 +362,8 @@ pub fn run(mut config: Config) {
     }
 
     if let Some(min) = config.min_saved_rows {
-        let saving = (original_summed_size - compressed_summed_size) as i32;
-        if saving < min {
+        let saving = original_summed_size.saturating_sub(compressed_summed_size);
+        if saving < min.try_into().unwrap_or(0) {
             warn!(
                 "Only {} rows would be saved by this compression. Skipping output.",
                 saving
