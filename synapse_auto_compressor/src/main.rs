@@ -17,7 +17,7 @@
 //! continue from where it left off.
 
 #[global_allocator]
-static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 use clap::{crate_authors, crate_description, crate_name, crate_version, value_t, App, Arg};
 use log::LevelFilter;
