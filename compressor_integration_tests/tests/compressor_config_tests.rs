@@ -46,6 +46,7 @@ fn run_succeeds_without_crashing() {
     let transactions = true;
     let graphs = false;
     let commit_changes = false;
+    let verify = true;
 
     let config = Config::new(
         db_url.clone(),
@@ -59,6 +60,7 @@ fn run_succeeds_without_crashing() {
         transactions,
         graphs,
         commit_changes,
+        verify,
     )
     .unwrap();
 
@@ -94,6 +96,7 @@ fn changes_commited_if_no_min_saved_rows() {
     let transactions = true;
     let graphs = false;
     let commit_changes = true;
+    let verify = true;
 
     let config = Config::new(
         db_url,
@@ -107,6 +110,7 @@ fn changes_commited_if_no_min_saved_rows() {
         transactions,
         graphs,
         commit_changes,
+        verify,
     )
     .unwrap();
 
@@ -160,6 +164,7 @@ fn changes_commited_if_min_saved_rows_exceeded() {
     let transactions = true;
     let graphs = false;
     let commit_changes = true;
+    let verify = true;
 
     let config = Config::new(
         db_url,
@@ -173,6 +178,7 @@ fn changes_commited_if_min_saved_rows_exceeded() {
         transactions,
         graphs,
         commit_changes,
+        verify,
     )
     .unwrap();
 
@@ -227,6 +233,7 @@ fn changes_not_commited_if_fewer_than_min_saved_rows() {
     let transactions = true;
     let graphs = false;
     let commit_changes = true;
+    let verify = true;
 
     let config = Config::new(
         db_url,
@@ -240,6 +247,7 @@ fn changes_not_commited_if_fewer_than_min_saved_rows() {
         transactions,
         graphs,
         commit_changes,
+        verify,
     )
     .unwrap();
 
@@ -280,6 +288,7 @@ fn run_panics_if_invalid_db_url() {
     let transactions = true;
     let graphs = false;
     let commit_changes = true;
+    let verify = true;
 
     let config = Config::new(
         db_url,
@@ -293,6 +302,7 @@ fn run_panics_if_invalid_db_url() {
         transactions,
         graphs,
         commit_changes,
+        verify,
     )
     .unwrap();
 
@@ -336,6 +346,7 @@ fn run_only_affects_given_room_id() {
     let transactions = true;
     let graphs = false;
     let commit_changes = true;
+    let verify = true;
 
     let config = Config::new(
         db_url,
@@ -349,6 +360,7 @@ fn run_only_affects_given_room_id() {
         transactions,
         graphs,
         commit_changes,
+        verify,
     )
     .unwrap();
 
@@ -406,6 +418,7 @@ fn run_respects_groups_to_compress() {
     let transactions = true;
     let graphs = false;
     let commit_changes = true;
+    let verify = true;
 
     let config = Config::new(
         db_url,
@@ -419,6 +432,7 @@ fn run_respects_groups_to_compress() {
         transactions,
         graphs,
         commit_changes,
+        verify,
     )
     .unwrap();
 
@@ -492,6 +506,7 @@ fn run_is_idempotent_when_run_on_whole_room() {
     let transactions = true;
     let graphs = false;
     let commit_changes = true;
+    let verify = true;
 
     let config1 = Config::new(
         db_url.clone(),
@@ -505,6 +520,7 @@ fn run_is_idempotent_when_run_on_whole_room() {
         transactions,
         graphs,
         commit_changes,
+        verify,
     )
     .unwrap();
 
@@ -520,6 +536,7 @@ fn run_is_idempotent_when_run_on_whole_room() {
         transactions,
         graphs,
         commit_changes,
+        verify,
     )
     .unwrap();
 
