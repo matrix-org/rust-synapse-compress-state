@@ -21,7 +21,7 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 use clap::{crate_authors, crate_description, crate_name, crate_version, value_t, App, Arg};
 use log::LevelFilter;
-use std::{env, fs::OpenOptions};
+use std::env;
 use synapse_auto_compressor::{manager, state_saving, LevelInfo};
 
 /// Execution starts here
@@ -29,12 +29,6 @@ fn main() {
     // setup the logger for the synapse_auto_compressor
     // The default can be overwritten with RUST_LOG
     // see the README for more information
-    let log_file = OpenOptions::new()
-        .append(true)
-        .create(true)
-        .open("synapse_auto_compressor.log")
-        .unwrap_or_else(|e| panic!("Error occured while opening the log file: {}", e));
-
     if env::var("RUST_LOG").is_err() {
         let mut log_builder = env_logger::builder();
         // Ensure panics still come through
@@ -47,7 +41,6 @@ fn main() {
     } else {
         // If RUST_LOG was set then use that
         let mut log_builder = env_logger::Builder::from_env("RUST_LOG");
-        log_builder.target(env_logger::Target::Pipe(Box::new(log_file)));
         // Ensure panics still come through
         log_builder.filter_module("panic", LevelFilter::Error);
         log_builder.init();
