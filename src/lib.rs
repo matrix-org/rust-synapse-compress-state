@@ -507,12 +507,11 @@ fn output_sql(
 
     info!("Writing changes...");
 
-    let pb: ProgressBar;
-    if cfg!(feature = "no-progress-bars") {
-        pb = ProgressBar::hidden();
+    let pb = if cfg!(feature = "no-progress-bars") {
+        ProgressBar::hidden()
     } else {
-        pb = ProgressBar::new(old_map.len() as u64);
-    }
+        ProgressBar::new(old_map.len() as u64)
+    };
     pb.set_style(
         ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
     );
@@ -622,12 +621,11 @@ fn check_that_maps_match(
 ) {
     info!("Checking that state maps match...");
 
-    let pb: ProgressBar;
-    if cfg!(feature = "no-progress-bars") {
-        pb = ProgressBar::hidden();
+    let pb = if cfg!(feature = "no-progress-bars") {
+        ProgressBar::hidden()
     } else {
-        pb = ProgressBar::new(old_map.len() as u64);
-    }
+        ProgressBar::new(old_map.len() as u64)
+    };
     pb.set_style(
         ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
     );
@@ -975,7 +973,6 @@ mod lib_tests {
     #[test]
     fn check_that_maps_match_returns_if_both_empty() {
         check_that_maps_match(&BTreeMap::new(), &BTreeMap::new());
-        assert!(true);
     }
 
     #[test]
@@ -1008,7 +1005,6 @@ mod lib_tests {
         }
 
         check_that_maps_match(&old_map, &BTreeMap::new());
-        assert!(true);
     }
 
     #[test]
@@ -1044,7 +1040,6 @@ mod lib_tests {
         }
 
         check_that_maps_match(&BTreeMap::new(), &new_map);
-        assert!(true);
     }
 
     #[test]
@@ -1076,7 +1071,6 @@ mod lib_tests {
         }
 
         check_that_maps_match(&BTreeMap::new(), &old_map.clone());
-        assert!(true);
     }
 
     #[test]
@@ -1139,7 +1133,6 @@ mod lib_tests {
         }
 
         check_that_maps_match(&old_map, &new_map);
-        assert!(true);
     }
 
     #[test]
@@ -1221,7 +1214,6 @@ mod lib_tests {
         );
 
         check_that_maps_match(&old_map, &new_map);
-        assert!(true);
     }
 
     //TODO: tests for correct SQL code produced by output_sql
@@ -1311,7 +1303,7 @@ mod pyo3_tests {
         .unwrap();
 
         assert_eq!(config.db_url, db_url);
-        assert!(!config.output_file.is_none());
+        assert!(config.output_file.is_some());
         assert_eq!(config.room_id, room_id);
         assert_eq!(config.min_state_group, Some(3225));
         assert_eq!(config.groups_to_compress, Some(970));
