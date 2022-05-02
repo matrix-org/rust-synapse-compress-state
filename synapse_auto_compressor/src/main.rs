@@ -19,7 +19,7 @@
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
-use clap::{crate_authors, crate_description, crate_name, crate_version, value_t, App, Arg};
+use clap::{crate_authors, crate_description, crate_name, crate_version, Arg, Command};
 use log::LevelFilter;
 use std::env;
 use synapse_auto_compressor::{manager, state_saving, LevelInfo};
@@ -50,13 +50,13 @@ fn main() {
     log::info!("synapse_auto_compressor started");
 
     // parse the command line arguments using the clap crate
-    let arguments = App::new(crate_name!())
+    let arguments = Command::new(crate_name!())
         .version(crate_version!())
         .author(crate_authors!("\n"))
         .about(crate_description!())
         .arg(
-            Arg::with_name("postgres-url")
-                .short("p")
+            Arg::new("postgres-url")
+                .short('p')
                 .value_name("POSTGRES_LOCATION")
                 .help("The configruation for connecting to the postgres database.")
                 .long_help(concat!(
@@ -69,8 +69,8 @@ fn main() {
                 .takes_value(true)
                 .required(true),
         ).arg(
-            Arg::with_name("chunk_size")
-                .short("c")
+            Arg::new("chunk_size")
+                .short('c')
                 .value_name("COUNT")
                 .help("The maximum number of state groups to load into memroy at once")
                 .long_help(concat!(
@@ -85,8 +85,8 @@ fn main() {
                 .takes_value(true)
                 .required(true),
         ).arg(
-            Arg::with_name("default_levels")
-                .short("l")
+            Arg::new("default_levels")
+                .short('l')
                 .value_name("LEVELS")
                 .help("Sizes of each new level in the compression algorithm, as a comma separated list.")
                 .long_help(concat!(
@@ -103,8 +103,8 @@ fn main() {
                 .takes_value(true)
                 .required(false),
         ).arg(
-            Arg::with_name("number_of_chunks")
-                .short("n")
+            Arg::new("number_of_chunks")
+                .short('n')
                 .value_name("CHUNKS_TO_COMPRESS")
                 .help("The number of chunks to compress")
                 .long_help(concat!(
@@ -127,7 +127,8 @@ fn main() {
         .expect("A chunk size is required");
 
     // The default structure to use when compressing
-    let default_levels = value_t!(arguments, "default_levels", LevelInfo)
+    let default_levels = arguments
+        .value_of_t::<LevelInfo>("default_levels")
         .unwrap_or_else(|e| panic!("Unable to parse default levels: {}", e));
 
     // The number of rooms to compress with this tool

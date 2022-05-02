@@ -13,7 +13,6 @@ classifier = [
 ]
 
 [dependencies]
-clap = "2.33.0"
 openssl = "0.10.32"
 postgres = "0.19.0"
 postgres-openssl = "0.5.0"
@@ -30,6 +29,10 @@ pyo3-log = "0.6.0"
 # Needed for pyo3 support
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[dependencies.clap]
+version = "3.1.14"
+features = ["cargo"]
 
 [dependencies.pyo3]
 version = "0.16.4"
