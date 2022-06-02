@@ -369,7 +369,7 @@ pub fn run(mut config: Config) {
         graphing::make_graphs(&state_group_map, new_state_group_map);
     }
 
-    if ratio > 1.0 {
+    if ratio >= 1.0 {
         warn!("This compression would not remove any rows. Exiting.");
         return;
     }
@@ -578,7 +578,7 @@ pub fn continue_run(
 
     let ratio = (new_num_rows as f64) / (original_num_rows as f64);
 
-    if ratio > 1.0 {
+    if ratio >= 1.0 {
         warn!("This compression would not remove any rows. Aborting.");
         return Some(ChunkStats {
             new_level_info: compressor.get_level_info(),
