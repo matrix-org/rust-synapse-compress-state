@@ -16,7 +16,7 @@ classifier = [
 openssl = "0.10.32"
 postgres = "0.19.0"
 postgres-openssl = "0.5.0"
-tikv-jemallocator = "0.4.1"
+tikv-jemallocator = "0.5.0"
 rand = "0.8.0"
 serial_test = "0.5.1"
 synapse_compress_state = { path = "../", features = ["no-progress-bars"] }
