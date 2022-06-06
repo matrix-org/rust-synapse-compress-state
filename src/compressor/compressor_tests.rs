@@ -93,14 +93,7 @@ fn create_new_tree_does_nothing_if_already_compressed() {
 
     for i in 0i64..=13i64 {
         // edge from map
-        let pred_group = initial_edges.get(&i);
-
-        // Need Option<i64> not Option<&i64>
-        let prev;
-        match pred_group {
-            Some(i) => prev = Some(*i),
-            None => prev = None,
-        }
+        let prev = initial_edges.get(&i).copied();
 
         // insert that edge into the initial map
         initial.insert(
