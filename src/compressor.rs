@@ -181,12 +181,11 @@ impl<'a> Compressor<'a> {
             panic!("Can only call `create_new_tree` once");
         }
 
-        let pb: ProgressBar;
-        if cfg!(feature = "no-progress-bars") {
-            pb = ProgressBar::hidden();
+        let pb = if cfg!(feature = "no-progress-bars") {
+            ProgressBar::hidden()
         } else {
-            pb = ProgressBar::new(self.original_state_map.len() as u64);
-        }
+            ProgressBar::new(self.original_state_map.len() as u64)
+        };
         pb.set_style(
             ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
         );

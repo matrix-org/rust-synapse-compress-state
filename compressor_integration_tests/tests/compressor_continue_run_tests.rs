@@ -56,7 +56,7 @@ fn continue_run_called_twice_same_as_run() {
 
     let start = Some(6);
     let chunk_size = 7;
-    let level_info = chunk_stats_1.new_level_info.clone();
+    let level_info = chunk_stats_1.new_level_info;
 
     // Run the compressor with those settings
     let chunk_stats_2 = continue_run(start, chunk_size, &db_url, &room_id, &level_info).unwrap();

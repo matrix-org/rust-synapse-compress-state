@@ -49,8 +49,8 @@ fn run_succeeds_without_crashing() {
     let verify = true;
 
     let config = Config::new(
-        db_url.clone(),
-        room_id.clone(),
+        db_url,
+        room_id,
         output_file,
         min_state_group,
         groups_to_compress,
@@ -525,14 +525,14 @@ fn run_is_idempotent_when_run_on_whole_room() {
     .unwrap();
 
     let config2 = Config::new(
-        db_url.clone(),
-        room_id.clone(),
+        db_url,
+        room_id,
         output_file2,
         min_state_group,
         groups_to_compress,
         min_saved_rows,
         max_state_group,
-        level_sizes.clone(),
+        level_sizes,
         transactions,
         graphs,
         commit_changes,

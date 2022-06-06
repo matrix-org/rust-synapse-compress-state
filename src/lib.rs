@@ -23,7 +23,7 @@
 use log::{info, warn, LevelFilter};
 use pyo3::{exceptions, prelude::*};
 
-use clap::{crate_authors, crate_description, crate_name, crate_version, value_t, App, Arg};
+use clap::{crate_authors, crate_description, crate_name, crate_version, Arg, Command};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use state_map::StateMap;
@@ -117,13 +117,13 @@ pub struct Config {
 impl Config {
     /// Build up config from command line arguments
     pub fn parse_arguments() -> Config {
-        let matches = App::new(crate_name!())
+        let matches = Command::new(crate_name!())
         .version(crate_version!())
         .author(crate_authors!("\n"))
         .about(crate_description!())
         .arg(
-            Arg::with_name("postgres-url")
-                .short("p")
+            Arg::new("postgres-url")
+                .short('p')
                 .value_name("POSTGRES_LOCATION")
                 .help("The configruation for connecting to the postgres database.")
                 .long_help(concat!(
@@ -136,8 +136,8 @@ impl Config {
                 .takes_value(true)
                 .required(true),
         ).arg(
-            Arg::with_name("room_id")
-                .short("r")
+            Arg::new("room_id")
+                .short('r')
                 .value_name("ROOM_ID")
                 .help("The room to process")
                 .long_help(concat!(
@@ -147,23 +147,23 @@ impl Config {
                 .takes_value(true)
                 .required(true),
         ).arg(
-            Arg::with_name("min_state_group")
-                .short("b")
+            Arg::new("min_state_group")
+                .short('b')
                 .value_name("MIN_STATE_GROUP")
                 .help("The state group to start processing from (non inclusive)")
                 .takes_value(true)
                 .required(false),
         ).arg(
-            Arg::with_name("min_saved_rows")
-                .short("m")
+            Arg::new("min_saved_rows")
+                .short('m')
                 .value_name("COUNT")
                 .help("Abort if fewer than COUNT rows would be saved")
                 .long_help("If the compressor cannot save this many rows from the database then it will stop early")
                 .takes_value(true)
                 .required(false),
         ).arg(
-            Arg::with_name("groups_to_compress")
-                .short("n")
+            Arg::new("groups_to_compress")
+                .short('n')
                 .value_name("GROUPS_TO_COMPRESS")
                 .help("How many groups to load into memory to compress")
                 .long_help(concat!(
@@ -172,14 +172,14 @@ impl Config {
                 .takes_value(true)
                 .required(false),
         ).arg(
-            Arg::with_name("output_file")
-                .short("o")
+            Arg::new("output_file")
+                .short('o')
                 .value_name("FILE")
                 .help("File to output the changes to in SQL")
                 .takes_value(true),
         ).arg(
-            Arg::with_name("max_state_group")
-                .short("s")
+            Arg::new("max_state_group")
+                .short('s')
                 .value_name("MAX_STATE_GROUP")
                 .help("The maximum state group to process up to")
                 .long_help(concat!(
@@ -188,8 +188,8 @@ impl Config {
                 .takes_value(true)
                 .required(false),
         ).arg(
-            Arg::with_name("level_sizes")
-                .short("l")
+            Arg::new("level_sizes")
+                .short('l')
                 .value_name("LEVELS")
                 .help("Sizes of each new level in the compression algorithm, as a comma separated list.")
                 .long_help(concat!(
@@ -205,30 +205,30 @@ impl Config {
                 .default_value("100,50,25")
                 .takes_value(true),
         ).arg(
-            Arg::with_name("transactions")
-                .short("t")
+            Arg::new("transactions")
+                .short('t')
                 .help("Whether to wrap each state group change in a transaction")
                 .long_help(concat!("If this flag is set then then each change to a particular",
                     " state group is wrapped in a transaction. This should be done if you wish to",
                     " apply the changes while synapse is still running."))
                 .requires("output_file"),
         ).arg(
-            Arg::with_name("graphs")
-                .short("g")
+            Arg::new("graphs")
+                .short('g')
                 .help("Output before and after graphs")
                 .long_help(concat!("If this flag is set then output the node and edge information for",
                     " the state_group directed graph built up from the predecessor state_group links.",
                     " These can be looked at in something like Gephi (https://gephi.org)")),
         ).arg(
-            Arg::with_name("commit_changes")
-                .short("c")
+            Arg::new("commit_changes")
+                .short('c')
                 .help("Commit changes to the database")
                 .long_help(concat!("If this flag is set then the changes the compressor makes will",
                     " be committed to the database. This should be safe to use while synapse is running",
                     " as it assumes by default that the transactions flag is set")),
         ).arg(
-            Arg::with_name("no_verify")
-                .short("N")
+            Arg::new("no_verify")
+                .short('N')
                 .help("Do not double-check that the compression was performed correctly")
                 .long_help(concat!("If this flag is set then the verification of the compressed",
                     " state groups, which compares them to the original groups, is skipped. This",
@@ -263,7 +263,8 @@ impl Config {
             .value_of("max_state_group")
             .map(|s| s.parse().expect("max_state_group must be an integer"));
 
-        let level_sizes = value_t!(matches, "level_sizes", LevelSizes)
+        let level_sizes = matches
+            .value_of_t::<LevelSizes>("level_sizes")
             .unwrap_or_else(|e| panic!("Unable to parse level_sizes: {}", e));
 
         let transactions = matches.is_present("transactions");
@@ -507,12 +508,11 @@ fn output_sql(
 
     info!("Writing changes...");
 
-    let pb: ProgressBar;
-    if cfg!(feature = "no-progress-bars") {
-        pb = ProgressBar::hidden();
+    let pb = if cfg!(feature = "no-progress-bars") {
+        ProgressBar::hidden()
     } else {
-        pb = ProgressBar::new(old_map.len() as u64);
-    }
+        ProgressBar::new(old_map.len() as u64)
+    };
     pb.set_style(
         ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
     );
@@ -622,12 +622,11 @@ fn check_that_maps_match(
 ) {
     info!("Checking that state maps match...");
 
-    let pb: ProgressBar;
-    if cfg!(feature = "no-progress-bars") {
-        pb = ProgressBar::hidden();
+    let pb = if cfg!(feature = "no-progress-bars") {
+        ProgressBar::hidden()
     } else {
-        pb = ProgressBar::new(old_map.len() as u64);
-    }
+        ProgressBar::new(old_map.len() as u64)
+    };
     pb.set_style(
         ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
     );
@@ -975,7 +974,6 @@ mod lib_tests {
     #[test]
     fn check_that_maps_match_returns_if_both_empty() {
         check_that_maps_match(&BTreeMap::new(), &BTreeMap::new());
-        assert!(true);
     }
 
     #[test]
@@ -1008,7 +1006,6 @@ mod lib_tests {
         }
 
         check_that_maps_match(&old_map, &BTreeMap::new());
-        assert!(true);
     }
 
     #[test]
@@ -1044,7 +1041,6 @@ mod lib_tests {
         }
 
         check_that_maps_match(&BTreeMap::new(), &new_map);
-        assert!(true);
     }
 
     #[test]
@@ -1076,7 +1072,6 @@ mod lib_tests {
         }
 
         check_that_maps_match(&BTreeMap::new(), &old_map.clone());
-        assert!(true);
     }
 
     #[test]
@@ -1139,7 +1134,6 @@ mod lib_tests {
         }
 
         check_that_maps_match(&old_map, &new_map);
-        assert!(true);
     }
 
     #[test]
@@ -1221,7 +1215,6 @@ mod lib_tests {
         );
 
         check_that_maps_match(&old_map, &new_map);
-        assert!(true);
     }
 
     //TODO: tests for correct SQL code produced by output_sql
@@ -1311,7 +1304,7 @@ mod pyo3_tests {
         .unwrap();
 
         assert_eq!(config.db_url, db_url);
-        assert!(!config.output_file.is_none());
+        assert!(config.output_file.is_some());
         assert_eq!(config.room_id, room_id);
         assert_eq!(config.min_state_group, Some(3225));
         assert_eq!(config.groups_to_compress, Some(970));

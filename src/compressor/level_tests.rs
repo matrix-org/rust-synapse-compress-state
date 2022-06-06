@@ -54,7 +54,7 @@ fn get_head_returns_head() {
 #[test]
 fn has_space_returns_true_if_empty() {
     let l = Level::new(15);
-    assert_eq!(l.has_space(), true);
+    assert!(l.has_space());
 }
 
 #[test]
@@ -65,7 +65,7 @@ fn has_space_returns_true_if_part_full() {
     l.update(1, true);
     l.update(143, true);
     l.update(15, true);
-    assert_eq!(l.has_space(), true);
+    assert!(l.has_space());
 }
 
 #[test]
@@ -76,5 +76,5 @@ fn has_space_returns_false_if_full() {
     l.update(3, true);
     l.update(4, true);
     l.update(5, true);
-    assert_eq!(l.has_space(), false);
+    assert!(!l.has_space());
 }
