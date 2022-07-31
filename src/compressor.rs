@@ -30,7 +30,7 @@
 
 use indicatif::{ProgressBar, ProgressStyle};
 use state_map::StateMap;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, time::Duration};
 use string_cache::DefaultAtom as Atom;
 
 use super::{collapse_state_maps, StateGroupEntry};
@@ -187,10 +187,12 @@ impl<'a> Compressor<'a> {
             ProgressBar::new(self.original_state_map.len() as u64)
         };
         pb.set_style(
-            ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
+            ProgressStyle::default_bar()
+                .template("[{elapsed_precise}] {bar} {pos}/{len} {msg}")
+                .unwrap(),
         );
         pb.set_message("state groups");
-        pb.enable_steady_tick(100);
+        pb.enable_steady_tick(Duration::from_millis(100));
 
         for (&state_group, entry) in self.original_state_map {
             // Check whether this entry is in_range or is just present in the map due to being

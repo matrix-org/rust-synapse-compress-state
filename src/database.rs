@@ -18,7 +18,7 @@ use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 use postgres::{fallible_iterator::FallibleIterator, types::ToSql, Client};
 use postgres_openssl::MakeTlsConnector;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use std::{borrow::Cow, collections::BTreeMap, fmt};
+use std::{borrow::Cow, collections::BTreeMap, fmt, time::Duration};
 
 use crate::{compressor::Level, generate_sql};
 
@@ -378,9 +378,11 @@ fn get_initial_data_from_db(
         ProgressBar::new_spinner()
     };
     pb.set_style(
-        ProgressStyle::default_spinner().template("{spinner} [{elapsed}] {pos} rows retrieved"),
+        ProgressStyle::default_spinner()
+            .template("{spinner} [{elapsed}] {pos} rows retrieved")
+            .unwrap(),
     );
-    pb.enable_steady_tick(100);
+    pb.enable_steady_tick(Duration::from_millis(100));
 
     while let Some(row) = rows.next().unwrap() {
         // The row in the map to copy the data to
@@ -542,10 +544,12 @@ pub fn send_changes_to_db(
         ProgressBar::new(old_map.len() as u64)
     };
     pb.set_style(
-        ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
+        ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] {bar} {pos}/{len} {msg}")
+            .unwrap(),
     );
     pb.set_message("state groups");
-    pb.enable_steady_tick(100);
+    pb.enable_steady_tick(Duration::from_millis(100));
 
     for sql_transaction in generate_sql(old_map, new_map, room_id) {
         if sql_transaction.is_empty() {
