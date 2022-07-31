@@ -4,7 +4,12 @@ use postgres::{fallible_iterator::FallibleIterator, Client};
 use postgres_openssl::MakeTlsConnector;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use state_map::StateMap;
-use std::{borrow::Cow, collections::BTreeMap, env, fmt};
+use std::{
+    borrow::Cow,
+    collections::BTreeMap,
+    env,
+    fmt::{self, Write as _},
+};
 use string_cache::DefaultAtom as Atom;
 
 use synapse_compress_state::StateGroupEntry;
@@ -23,47 +28,48 @@ pub fn add_contents_to_database(room_id: &str, state_group_map: &BTreeMap<i64, S
     let mut client = Client::connect(DB_URL, connector).unwrap();
 
     // build up the query
-    let mut sql = "".to_string();
+    let mut sql = String::new();
+
+    let room_id = PGEscape(room_id);
+    let event_id = PGEscape("left_blank");
 
     for (sg, entry) in state_group_map {
         // create the entry for state_groups
-        sql.push_str(&format!(
-            "INSERT INTO state_groups (id, room_id, event_id) VALUES ({},{},{});\n",
-            sg,
-            PGEscape(room_id),
-            PGEscape("left_blank")
-        ));
+        writeln!(
+            sql,
+            "INSERT INTO state_groups (id, room_id, event_id) \
+             VALUES ({sg}, {room_id}, {event_id});",
+        )
+        .expect("Writing to a String cannot fail");
 
         // create the entry in state_group_edges IF exists
         if let Some(prev_sg) = entry.prev_state_group {
-            sql.push_str(&format!(
-                "INSERT INTO state_group_edges (state_group, prev_state_group) VALUES ({}, {});\n",
-                sg, prev_sg
-            ));
+            writeln!(
+                sql,
+                "INSERT INTO state_group_edges (state_group, prev_state_group) \
+                 VALUES ({sg}, {prev_sg});",
+            )
+            .unwrap();
         }
 
         // write entry for each row in delta
         if !entry.state_map.is_empty() {
-            sql.push_str("INSERT INTO state_groups_state (state_group, room_id, type, state_key, event_id) VALUES");
+            sql.push_str(
+                "INSERT INTO state_groups_state \
+                 (state_group, room_id, type, state_key, event_id) \
+                 VALUES\n",
+            );
 
-            let mut first = true;
             for ((t, s), e) in entry.state_map.iter() {
-                if first {
-                    sql.push_str("     ");
-                    first = false;
-                } else {
-                    sql.push_str("    ,");
-                }
-                sql.push_str(&format!(
-                    "({}, {}, {}, {}, {})",
-                    sg,
-                    PGEscape(room_id),
-                    PGEscape(t),
-                    PGEscape(s),
-                    PGEscape(e)
-                ));
+                let t = PGEscape(t);
+                let s = PGEscape(s);
+                let e = PGEscape(e);
+
+                writeln!(sql, "    ({sg}, {room_id}, {t}, {s}, {e}),").unwrap();
             }
-            sql.push_str(";\n");
+
+            // Replace the last comma with a semicolon
+            sql.replace_range((sql.len() - 2).., ";\n");
         }
     }
 
