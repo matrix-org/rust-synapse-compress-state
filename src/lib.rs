@@ -27,7 +27,10 @@ use clap::{crate_authors, crate_description, crate_name, crate_version, Arg, Com
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use state_map::StateMap;
-use std::{collections::BTreeMap, convert::TryInto, fs::File, io::Write, str::FromStr};
+use std::{
+    collections::BTreeMap, convert::TryInto, fmt::Write as _, fs::File, io::Write, str::FromStr,
+    time::Duration,
+};
 use string_cache::DefaultAtom as Atom;
 
 mod compressor;
@@ -424,8 +427,7 @@ fn generate_sql<'a>(
     new_map: &'a BTreeMap<i64, StateGroupEntry>,
     room_id: &'a str,
 ) -> impl Iterator<Item = String> + 'a {
-    old_map.iter().map(move |(sg,old_entry)| {
-
+    old_map.iter().map(move |(sg, old_entry)| {
         let new_entry = &new_map[sg];
 
         // Check if the new map has a different entry for this state group
@@ -435,48 +437,50 @@ fn generate_sql<'a>(
             let mut sql = String::new();
 
             // remove the current edge
-            sql.push_str(&format!(
-                "DELETE FROM state_group_edges WHERE state_group = {};\n",
-                sg
-            ));
+            writeln!(
+                sql,
+                "DELETE FROM state_group_edges WHERE state_group = {sg};",
+            )
+            .expect("Writing to a String cannot fail");
 
             // if the new entry has a predecessor then put that into state_group_edges
             if let Some(prev_sg) = new_entry.prev_state_group {
-                sql.push_str(&format!("INSERT INTO state_group_edges (state_group, prev_state_group) VALUES ({}, {});\n", sg, prev_sg));
+                writeln!(
+                    sql,
+                    "INSERT INTO state_group_edges (state_group, prev_state_group) \
+                     VALUES ({sg}, {prev_sg});",
+                )
+                .unwrap();
             }
 
             // remove the current deltas for this state group
-            sql.push_str(&format!(
-                "DELETE FROM state_groups_state WHERE state_group = {};\n",
-                sg
-            ));
+            writeln!(
+                sql,
+                "DELETE FROM state_groups_state WHERE state_group = {sg};",
+            )
+            .unwrap();
 
             if !new_entry.state_map.is_empty() {
                 // place all the deltas for the state group in the new map into state_groups_state
-                sql.push_str("INSERT INTO state_groups_state (state_group, room_id, type, state_key, event_id) VALUES\n");
+                sql.push_str(
+                    "INSERT INTO state_groups_state \
+                     (state_group, room_id, type, state_key, event_id) \
+                     VALUES\n",
+                );
 
-                let mut first = true;
+                let room_id = PGEscape(room_id);
                 for ((t, s), e) in new_entry.state_map.iter() {
-                    // Add a comma at the start if not the first row to be inserted
-                    if first {
-                        sql.push_str("     ");
-                        first = false;
-                    } else {
-                        sql.push_str("    ,");
-                    }
+                    let t = PGEscape(t);
+                    let s = PGEscape(s);
+                    let e = PGEscape(e);
 
-                    // write the row to be insterted of the form:
+                    // write the row to be inserted of the form:
                     // (state_group, room_id, type, state_key, event_id)
-                    sql.push_str(&format!(
-                        "({}, {}, {}, {}, {})",
-                        sg,
-                        PGEscape(room_id),
-                        PGEscape(t),
-                        PGEscape(s),
-                        PGEscape(e)
-                    ));
+                    writeln!(sql, "    ({sg}, {room_id}, {t}, {s}, {e}),").unwrap();
                 }
-                sql.push_str(";\n");
+
+                // Replace the last comma with a semicolon
+                sql.replace_range((sql.len() - 2).., ";\n");
             }
 
             sql
@@ -514,10 +518,12 @@ fn output_sql(
         ProgressBar::new(old_map.len() as u64)
     };
     pb.set_style(
-        ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
+        ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] {bar} {pos}/{len} {msg}")
+            .unwrap(),
     );
     pb.set_message("state groups");
-    pb.enable_steady_tick(100);
+    pb.enable_steady_tick(Duration::from_millis(100));
 
     if let Some(output) = &mut config.output_file {
         for mut sql_transaction in generate_sql(old_map, new_map, &config.room_id) {
@@ -628,10 +634,12 @@ fn check_that_maps_match(
         ProgressBar::new(old_map.len() as u64)
     };
     pb.set_style(
-        ProgressStyle::default_bar().template("[{elapsed_precise}] {bar} {pos}/{len} {msg}"),
+        ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] {bar} {pos}/{len} {msg}")
+            .unwrap(),
     );
     pb.set_message("state groups");
-    pb.enable_steady_tick(100);
+    pb.enable_steady_tick(Duration::from_millis(100));
 
     // Now let's iterate through and assert that the state for each group
     // matches between the two versions.
