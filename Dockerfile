@@ -1,4 +1,4 @@
-FROM rust:alpine AS builder
+FROM docker.io/rust:alpine AS builder
 
 RUN apk add python3 musl-dev pkgconfig openssl-dev make
 
@@ -14,7 +14,7 @@ WORKDIR /opt/synapse-compressor/synapse_auto_compressor/
 
 RUN cargo build
 
-FROM alpine
+FROM docker.io/alpine
 
 RUN apk add --no-cache libgcc
 
