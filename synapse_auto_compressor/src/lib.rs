@@ -26,7 +26,7 @@ pub mod state_saving;
 ///
 /// This is needed since FromStr cannot be implemented for structs
 /// that aren't defined in this scope
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct LevelInfo(pub Vec<Level>);
 
 // Implement FromStr so that an argument of the form "100,50,25"

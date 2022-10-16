@@ -30,7 +30,7 @@ pyo3-log = "0.7.0"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies.clap]
-version = "3.1.14"
+version = "4.0.15"
 features = ["cargo"]
 
 [dependencies.pyo3]

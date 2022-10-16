@@ -67,12 +67,13 @@ fn main() {
                     "See https://docs.rs/tokio-postgres/0.7.2/tokio_postgres/config/struct.Config.html ",
                     "for the full details."
                 ))
-                .takes_value(true)
+                .num_args(1)
                 .required(true),
         ).arg(
             Arg::new("chunk_size")
                 .short('c')
                 .value_name("COUNT")
+                .value_parser(clap::value_parser!(i64))
                 .help("The maximum number of state groups to load into memroy at once")
                 .long_help(concat!(
                     "The number of state_groups to work on at once. All of the entries",
@@ -83,12 +84,13 @@ fn main() {
                     " chunk as a whole (which may well happen in rooms with lots",
                     " of backfill in) then the entire chunk is skipped.)",
                 ))
-                .takes_value(true)
+                .num_args(1)
                 .required(true),
         ).arg(
             Arg::new("default_levels")
                 .short('l')
                 .value_name("LEVELS")
+                .value_parser(clap::value_parser!(LevelInfo))
                 .help("Sizes of each new level in the compression algorithm, as a comma separated list.")
                 .long_help(concat!(
                     "Sizes of each new level in the compression algorithm, as a comma separated list.",
@@ -101,41 +103,43 @@ fn main() {
                     " iterations needed to fetch a given set of state.",
                 ))
                 .default_value("100,50,25")
-                .takes_value(true)
+                .num_args(1)
                 .required(false),
         ).arg(
             Arg::new("number_of_chunks")
                 .short('n')
                 .value_name("CHUNKS_TO_COMPRESS")
+                .value_parser(clap::value_parser!(i64))
                 .help("The number of chunks to compress")
                 .long_help(concat!(
                     "This many chunks of the database will be compressed. The higher this number is set to, ",
                     "the longer the compressor will run for."
                 ))
-                .takes_value(true)
+                .num_args(1)
                 .required(true),
         ).get_matches();
 
     // The URL of the database
     let db_url = arguments
-        .value_of("postgres-url")
+        .get_one::<String>("postgres-url")
         .expect("A database url is required");
 
     // The number of state groups to work on at once
     let chunk_size = arguments
-        .value_of("chunk_size")
-        .map(|s| s.parse().expect("chunk_size must be an integer"))
+        .get_one("chunk_size")
+        .copied()
         .expect("A chunk size is required");
 
     // The default structure to use when compressing
     let default_levels = arguments
-        .value_of_t::<LevelInfo>("default_levels")
-        .unwrap_or_else(|e| panic!("Unable to parse default levels: {}", e));
+        .get_one::<LevelInfo>("default_levels")
+        .cloned()
+        .unwrap();
 
     // The number of rooms to compress with this tool
     let number_of_chunks = arguments
-        .value_of("number_of_chunks")
-        .map(|s| s.parse().expect("number_of_chunks must be an integer"))
+        .get_one("number_of_chunks")
+        .copied()
         .expect("number_of_chunks is required");
 
     // Connect to the database and create the 2 tables this tool needs

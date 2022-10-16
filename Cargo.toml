@@ -29,7 +29,7 @@ git = "https://github.com/matrix-org/rust-matrix-state-map"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies.clap]
-version = "3.1.14"
+version = "4.0.15"
 features = ["cargo"]
 
 [dependencies.pyo3]

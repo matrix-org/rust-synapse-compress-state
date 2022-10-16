@@ -52,7 +52,7 @@ pub struct StateGroupEntry {
 }
 
 /// Helper struct for parsing the `level_sizes` argument.
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 struct LevelSizes(Vec<usize>);
 
 impl FromStr for LevelSizes {
@@ -136,7 +136,7 @@ impl Config {
                     "See https://docs.rs/tokio-postgres/0.7.2/tokio_postgres/config/struct.Config.html ",
                     "for the full details."
                 ))
-                .takes_value(true)
+                .num_args(1)
                 .required(true),
         ).arg(
             Arg::new("room_id")
@@ -147,53 +147,58 @@ impl Config {
                     "The room to process. This is the value found in the rooms table of the database",
                     " not the common name for the room - is should look like: \"!wOlkWNmgkAZFxbTaqj:matrix.org\""
                 ))
-                .takes_value(true)
+                .num_args(1)
                 .required(true),
         ).arg(
             Arg::new("min_state_group")
                 .short('b')
                 .value_name("MIN_STATE_GROUP")
+                .value_parser(clap::value_parser!(i64))
                 .help("The state group to start processing from (non inclusive)")
-                .takes_value(true)
+                .num_args(1)
                 .required(false),
         ).arg(
             Arg::new("min_saved_rows")
                 .short('m')
                 .value_name("COUNT")
+                .value_parser(clap::value_parser!(i32))
                 .help("Abort if fewer than COUNT rows would be saved")
                 .long_help("If the compressor cannot save this many rows from the database then it will stop early")
-                .takes_value(true)
+                .num_args(1)
                 .required(false),
         ).arg(
             Arg::new("groups_to_compress")
                 .short('n')
                 .value_name("GROUPS_TO_COMPRESS")
+                .value_parser(clap::value_parser!(i64))
                 .help("How many groups to load into memory to compress")
                 .long_help(concat!(
                     "How many groups to load into memory to compress (starting from",
                     " the 1st group in the room or the group specified by -s)"))
-                .takes_value(true)
+                .num_args(1)
                 .required(false),
         ).arg(
             Arg::new("output_file")
                 .short('o')
                 .value_name("FILE")
                 .help("File to output the changes to in SQL")
-                .takes_value(true),
+                .num_args(1),
         ).arg(
             Arg::new("max_state_group")
                 .short('s')
                 .value_name("MAX_STATE_GROUP")
+                .value_parser(clap::value_parser!(i64))
                 .help("The maximum state group to process up to")
                 .long_help(concat!(
                     "If a max_state_group is specified then only state groups with id's lower",
                     " than this number are able to be compressed."))
-                .takes_value(true)
+                .num_args(1)
                 .required(false),
         ).arg(
             Arg::new("level_sizes")
                 .short('l')
                 .value_name("LEVELS")
+                .value_parser(clap::value_parser!(LevelSizes))
                 .help("Sizes of each new level in the compression algorithm, as a comma separated list.")
                 .long_help(concat!(
                     "Sizes of each new level in the compression algorithm, as a comma separated list.",
@@ -206,10 +211,11 @@ impl Config {
                     " iterations needed to fetch a given set of state.",
                 ))
                 .default_value("100,50,25")
-                .takes_value(true),
+                .num_args(1),
         ).arg(
             Arg::new("transactions")
                 .short('t')
+                .action(clap::ArgAction::SetTrue)
                 .help("Whether to wrap each state group change in a transaction")
                 .long_help(concat!("If this flag is set then then each change to a particular",
                     " state group is wrapped in a transaction. This should be done if you wish to",
@@ -218,6 +224,7 @@ impl Config {
         ).arg(
             Arg::new("graphs")
                 .short('g')
+                .action(clap::ArgAction::SetTrue)
                 .help("Output before and after graphs")
                 .long_help(concat!("If this flag is set then output the node and edge information for",
                     " the state_group directed graph built up from the predecessor state_group links.",
@@ -225,6 +232,7 @@ impl Config {
         ).arg(
             Arg::new("commit_changes")
                 .short('c')
+                .action(clap::ArgAction::SetTrue)
                 .help("Commit changes to the database")
                 .long_help(concat!("If this flag is set then the changes the compressor makes will",
                     " be committed to the database. This should be safe to use while synapse is running",
@@ -232,6 +240,7 @@ impl Config {
         ).arg(
             Arg::new("no_verify")
                 .short('N')
+                .action(clap::ArgAction::SetTrue)
                 .help("Do not double-check that the compression was performed correctly")
                 .long_help(concat!("If this flag is set then the verification of the compressed",
                     " state groups, which compares them to the original groups, is skipped. This",
@@ -239,44 +248,27 @@ impl Config {
         ).get_matches();
 
         let db_url = matches
-            .value_of("postgres-url")
+            .get_one::<String>("postgres-url")
             .expect("db url should be required");
 
-        let output_file = matches.value_of("output_file").map(|path| {
+        let output_file = matches.get_one::<String>("output_file").map(|path| {
             File::create(path).unwrap_or_else(|e| panic!("Unable to create output file: {}", e))
         });
 
         let room_id = matches
-            .value_of("room_id")
+            .get_one::<String>("room_id")
             .expect("room_id should be required since no file");
 
-        let min_state_group = matches
-            .value_of("min_state_group")
-            .map(|s| s.parse().expect("min_state_group must be an integer"));
+        let min_state_group = matches.get_one("min_state_group").copied();
+        let groups_to_compress = matches.get_one("groups_to_compress").copied();
+        let min_saved_rows = matches.get_one("min_saved_rows").copied();
+        let max_state_group = matches.get_one("max_state_group").copied();
+        let level_sizes = matches.get_one("level_sizes").cloned().unwrap();
 
-        let groups_to_compress = matches
-            .value_of("groups_to_compress")
-            .map(|s| s.parse().expect("groups_to_compress must be an integer"));
-
-        let min_saved_rows = matches
-            .value_of("min_saved_rows")
-            .map(|v| v.parse().expect("COUNT must be an integer"));
-
-        let max_state_group = matches
-            .value_of("max_state_group")
-            .map(|s| s.parse().expect("max_state_group must be an integer"));
-
-        let level_sizes = matches
-            .value_of_t::<LevelSizes>("level_sizes")
-            .unwrap_or_else(|e| panic!("Unable to parse level_sizes: {}", e));
-
-        let transactions = matches.is_present("transactions");
-
-        let graphs = matches.is_present("graphs");
-
-        let commit_changes = matches.is_present("commit_changes");
-
-        let verify = !matches.is_present("no_verify");
+        let transactions = matches.get_flag("transactions");
+        let graphs = matches.get_flag("graphs");
+        let commit_changes = matches.get_flag("commit_changes");
+        let verify = !matches.get_flag("no_verify");
 
         Config {
             db_url: String::from(db_url),
