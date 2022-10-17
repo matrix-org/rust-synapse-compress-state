@@ -18,7 +18,7 @@ rayon = "1.3.0"
 string_cache = "0.8.0"
 env_logger = "0.9.0"
 log = "0.4.14"
-pyo3-log = "0.6.0"
+pyo3-log = "0.7.0"
 log-panics = "2.0.0"
 
 [dependencies.state-map]
@@ -29,11 +29,11 @@ git = "https://github.com/matrix-org/rust-matrix-state-map"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies.clap]
-version = "3.1.14"
+version = "4.0.15"
 features = ["cargo"]
 
 [dependencies.pyo3]
-version = "0.16.4"
+version = "0.17.1"
 features = ["extension-module"]
 
 [dependencies.tikv-jemallocator]
