@@ -26,7 +26,7 @@ periodically.
 This tool requires `cargo` to be installed. See https://www.rust-lang.org/tools/install
 for instructions on how to do this.
 
-This project follows the deprecation policy of Synapse[https://matrix-org.github.io/synapse/latest/deprecation_policy.html]
+This project follows the deprecation policy of [Synapse](https://matrix-org.github.io/synapse/latest/deprecation_policy.html)
 on Rust and will assume a recent stable version of Rust and the ability to fetch a more recent one if necessary.
 
 To build `synapse_auto_compressor`, clone this repository and navigate to the
