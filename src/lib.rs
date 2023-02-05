@@ -752,22 +752,29 @@ impl Config {
 /// are compulsory (so that new() act's like parse_arguments())
 #[cfg(feature = "pyo3")]
 #[allow(clippy::too_many_arguments)]
-#[pyfunction(
+#[pyfunction]
+#[pyo3(signature = (
     // db_url has no default
-    // room_id  has no default
-    output_file = "None",
-    min_state_group = "None",
-    groups_to_compress = "None",
-    min_saved_rows = "None",
-    max_state_group = "None",
-    level_sizes = "String::from(\"100,50,25\")",
+    db_url,
+
+    // room_id has no default
+    room_id,
+
+    output_file = None,
+    min_state_group = None,
+    groups_to_compress = None,
+    min_saved_rows = None,
+    max_state_group = None,
+    level_sizes = String::from("100,50,25"),
+
     // have this default to true as is much worse to not have it if you need it
     // than to have it and not need it
     transactions = true,
+
     graphs = false,
     commit_changes = false,
     verify = true,
-)]
+))]
 fn run_compression(
     db_url: String,
     room_id: String,
