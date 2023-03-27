@@ -237,15 +237,9 @@ fn load_map_from_db(
         let mut missing_sgs: Vec<_> = state_group_map
             .iter()
             .filter_map(|(_sg, entry)| {
-                if let Some(prev_sg) = entry.prev_state_group {
-                    if state_group_map.contains_key(&prev_sg) {
-                        None
-                    } else {
-                        Some(prev_sg)
-                    }
-                } else {
-                    None
-                }
+                entry
+                    .prev_state_group
+                    .filter(|&prev_sg| !state_group_map.contains_key(&prev_sg))
             })
             .collect();
 

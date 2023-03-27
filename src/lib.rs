@@ -563,7 +563,7 @@ pub fn continue_run(
     let (state_group_map, max_group_found) =
         database::reload_data_from_db(db_url, room_id, start, Some(chunk_size), level_info)?;
 
-    let original_num_rows = state_group_map.iter().map(|(_, v)| v.state_map.len()).sum();
+    let original_num_rows = state_group_map.values().map(|v| v.state_map.len()).sum();
 
     // Now we actually call the compression algorithm.
     let compressor = Compressor::compress_from_save(&state_group_map, level_info);
