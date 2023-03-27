@@ -156,7 +156,7 @@ impl<'a> Compressor<'a> {
     ) -> Compressor<'a> {
         let levels = level_info
             .iter()
-            .map(|l| Level::restore((*l).max_length, (*l).current_chain_length, (*l).head))
+            .map(|l| Level::restore(l.max_length, l.current_chain_length, l.head))
             .collect();
 
         let mut compressor = Compressor {
