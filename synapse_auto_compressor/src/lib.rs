@@ -7,7 +7,9 @@
 //! on space reductions
 
 use anyhow::Result;
+#[cfg(feature = "pyo3")]
 use log::{error, LevelFilter};
+#[cfg(feature = "pyo3")]
 use pyo3::{
     exceptions::PyRuntimeError, prelude::pymodule, types::PyModule, PyErr, PyResult, Python,
 };
@@ -56,6 +58,7 @@ impl FromStr for LevelInfo {
 }
 
 // PyO3 INTERFACE STARTS HERE
+#[cfg(feature = "pyo3")]
 #[pymodule]
 fn synapse_auto_compressor(_py: Python, m: &PyModule) -> PyResult<()> {
     let _ = pyo3_log::Logger::default()
