@@ -18,7 +18,7 @@ postgres = "0.19.0"
 postgres-openssl = "0.5.0"
 rand = "0.8.0"
 serial_test = "0.9.0"
-synapse_compress_state = { path = "../", features = ["no-progress-bars"] }
+synapse_compress_state = { path = "../", features = ["no-progress-bars"], default-features = false }
 env_logger = "0.9.0"
 log = "0.4.14"
 log-panics = "2.0.0"
@@ -43,4 +43,4 @@ optional = true
 
 [features]
 default = ["jemalloc"]
-jemalloc = ["tikv-jemallocator"]
+jemalloc = ["tikv-jemallocator", "synapse_compress_state/jemalloc"]
