@@ -23,6 +23,7 @@
 use log::{info, warn, LevelFilter};
 use pyo3::{exceptions, prelude::*};
 
+#[cfg(feature = "clap")]
 use clap::{crate_authors, crate_description, crate_name, crate_version, Arg, Command};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
@@ -117,6 +118,7 @@ pub struct Config {
     verify: bool,
 }
 
+#[cfg(feature = "clap")]
 impl Config {
     /// Build up config from command line arguments
     pub fn parse_arguments() -> Config {
