@@ -20,9 +20,11 @@
 // of arguments - this hopefully doesn't make the code unclear
 // #[allow(clippy::too_many_arguments)] is therefore used around some functions
 
-use log::{info, warn, LevelFilter};
+use log::{info, warn};
+#[cfg(feature = "pyo3")]
 use pyo3::{exceptions, prelude::*};
 
+#[cfg(feature = "clap")]
 use clap::{crate_authors, crate_description, crate_name, crate_version, Arg, Command};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
@@ -117,6 +119,7 @@ pub struct Config {
     verify: bool,
 }
 
+#[cfg(feature = "clap")]
 impl Config {
     /// Build up config from command line arguments
     pub fn parse_arguments() -> Config {
@@ -747,6 +750,7 @@ impl Config {
 /// Default arguments are equivalent to using the command line tool
 /// No default's are provided for db_url or room_id since these arguments
 /// are compulsory (so that new() act's like parse_arguments())
+#[cfg(feature = "pyo3")]
 #[allow(clippy::too_many_arguments)]
 #[pyfunction(
     // db_url has no default
@@ -802,14 +806,15 @@ fn run_compression(
 }
 
 /// Python module - "import synapse_compress_state" to use
+#[cfg(feature = "pyo3")]
 #[pymodule]
 fn synapse_compress_state(_py: Python, m: &PyModule) -> PyResult<()> {
     let _ = pyo3_log::Logger::default()
         // don't send out anything lower than a warning from other crates
-        .filter(LevelFilter::Warn)
+        .filter(log::LevelFilter::Warn)
         // don't log warnings from synapse_compress_state, the synapse_auto_compressor handles these
         // situations and provides better log messages
-        .filter_target("synapse_compress_state".to_owned(), LevelFilter::Debug)
+        .filter_target("synapse_compress_state".to_owned(), log::LevelFilter::Debug)
         .install();
     // ensure any panics produce error messages in the log
     log_panics::init();
