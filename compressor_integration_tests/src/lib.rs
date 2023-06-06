@@ -195,7 +195,7 @@ fn collapse_state_with_database(state_group: i64) -> StateMap<Atom> {
 
     while let Some(sg) = next_group {
         // get predecessor from state_group_edges
-        let mut pred = client.query_raw(query_pred, &[sg]).unwrap();
+        let mut pred = client.query_raw(query_pred, [sg]).unwrap();
 
         // set next_group to predecessor
         next_group = match pred.next().unwrap() {
@@ -209,7 +209,7 @@ fn collapse_state_with_database(state_group: i64) -> StateMap<Atom> {
         }
         drop(pred);
 
-        let mut rows = client.query_raw(query_deltas, &[sg]).unwrap();
+        let mut rows = client.query_raw(query_deltas, [sg]).unwrap();
 
         while let Some(row) = rows.next().unwrap() {
             // Copy the single delta from the predecessor stored in this row
