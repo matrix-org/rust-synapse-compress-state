@@ -74,7 +74,8 @@ fn synapse_auto_compressor(_py: Python, m: &PyModule) -> PyResult<()> {
     // ensure any panics produce error messages in the log
     log_panics::init();
 
-    #[pyfn(m, compress_largest_rooms)]
+    #[pyfn(m)]
+    #[pyo3(name = "compress_largest_rooms")]
     fn compress_state_events_table(
         py: Python,
         db_url: String,
