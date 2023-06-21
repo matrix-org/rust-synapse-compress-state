@@ -17,7 +17,7 @@ classifier = [
 ]
 
 [dependencies]
-openssl = "0.10.48"
+openssl = "0.10.55"
 postgres = "0.19.0"
 postgres-openssl = "0.5.0"
 rand = "0.8.0"
