@@ -59,7 +59,7 @@ in) then the entire chunk is skipped.
 *CHUNKS_TO_COMPRESS* chunks of size *CHUNK_SIZE* will be compressed. The higher this
 number is set to, the longer the compressor will run for.
 
-- -d [LEVELS]
+- -l [LEVELS]
 Sizes of each new level in the compression algorithm, as a comma-separated list.
 The first entry in the list is for the lowest, most granular level, with each
 subsequent entry being for the next highest level. The number of entries in the
