@@ -36,9 +36,17 @@ This will create an executable and store it in
 `synapse_auto_compressor/target/debug/synapse_auto_compressor`.
 
 ## Example usage
+
+Compress 100 chunks of size 500 in a remote PostgreSQL database:
 ```
 $ synapse_auto_compressor -p postgresql://user:pass@localhost/synapse -c 500 -n 100
 ```
+
+Compress 100 chunks of size 500 using local PostgreSQL socket:
+```
+$ sudo -u postgres synapse_auto_compressor -p "user=postgres dbname=matrix-synapse host=/var/run/postgresql" -c 500 -n 100
+```
+
 ## Running Options
 
 - -p [POSTGRES_LOCATION] **Required**
