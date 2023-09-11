@@ -54,6 +54,7 @@ jobs:
             latest=false
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=,format=long
             type=semver,pattern=v{{version}}
             type=semver,pattern=v{{major}}.{{minor}}
 
