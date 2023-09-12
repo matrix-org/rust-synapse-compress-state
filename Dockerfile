@@ -1,27 +1,54 @@
-FROM docker.io/rust:alpine AS builder
+# This uses the multi-stage build feature of Docker to build the binaries for multiple architectures without QEMU.
+# The first stage is responsible for building binaries for all the supported architectures (amd64 and arm64), and the
+# second stage only copies the binaries for the target architecture.
+# We leverage Zig and cargo-zigbuild for providing a cross-compilation-capable C compiler and linker.
 
-RUN apk add python3 musl-dev pkgconfig openssl-dev make git
+ARG RUSTC_VERSION=1.72.0
+ARG ZIG_VERSION=0.11.0
+ARG CARGO_ZIGBUILD_VERSION=0.17.1
+
+FROM --platform=${BUILDPLATFORM} docker.io/rust:${RUSTC_VERSION} AS builder
+
+# Install cargo-zigbuild for cross-compilation
+ARG CARGO_ZIGBUILD_VERSION
+RUN cargo install --locked cargo-zigbuild@=${CARGO_ZIGBUILD_VERSION}
+
+# Download zig compiler for cross-compilation
+ARG ZIG_VERSION
+RUN curl -L "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-$(uname -m)-${ZIG_VERSION}.tar.xz" | tar -J -x -C /usr/local && \
+  ln -s "/usr/local/zig-linux-$(uname -m)-${ZIG_VERSION}/zig" /usr/local/bin/zig
+
+# Install all cross-compilation targets
+ARG RUSTC_VERSION
+RUN rustup target add  \
+    --toolchain "${RUSTC_VERSION}" \
+    x86_64-unknown-linux-musl \
+    aarch64-unknown-linux-musl
 
 WORKDIR /opt/synapse-compressor/
 COPY . .
 
-ENV RUSTFLAGS="-C target-feature=-crt-static"
+# Build for all targets
+RUN cargo zigbuild \
+    --release \
+    --workspace \
+    --bins \
+    --features "openssl/vendored" \
+    --target aarch64-unknown-linux-musl \
+    --target x86_64-unknown-linux-musl
 
-# arm64 builds consume a lot of memory if `CARGO_NET_GIT_FETCH_WITH_CLI` is not
-# set to true, so we expose it as a build-arg.
-ARG CARGO_NET_GIT_FETCH_WITH_CLI=false
-ENV CARGO_NET_GIT_FETCH_WITH_CLI=$CARGO_NET_GIT_FETCH_WITH_CLI
-ARG BUILD_PROFILE=dev
+# Move the binaries in a separate folder per architecture, so we can copy them using the TARGETARCH build arg
+RUN mkdir -p /opt/binaries/amd64 /opt/binaries/arm64
+RUN mv target/x86_64-unknown-linux-musl/release/synapse_compress_state \
+       target/x86_64-unknown-linux-musl/release/synapse_auto_compressor \
+       /opt/binaries/amd64
+RUN mv target/aarch64-unknown-linux-musl/release/synapse_compress_state \
+       target/aarch64-unknown-linux-musl/release/synapse_auto_compressor \
+       /opt/binaries/arm64
 
-RUN cargo build --profile=$BUILD_PROFILE
+FROM --platform=${TARGETPLATFORM} docker.io/alpine
 
-WORKDIR /opt/synapse-compressor/synapse_auto_compressor/
+ARG TARGETARCH
 
-RUN cargo build
-
-FROM docker.io/alpine
-
-RUN apk add --no-cache libgcc
-
-COPY --from=builder /opt/synapse-compressor/target/*/synapse_compress_state /usr/local/bin/synapse_compress_state
-COPY --from=builder /opt/synapse-compressor/target/*/synapse_auto_compressor /usr/local/bin/synapse_auto_compressor
+COPY --from=builder /opt/binaries/${TARGETARCH}/synapse_compress_state /usr/local/bin/synapse_compress_state
+COPY --from=builder /opt/binaries/${TARGETARCH}/synapse_auto_compressor /usr/local/bin/synapse_auto_compressor
