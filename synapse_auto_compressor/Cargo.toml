@@ -17,40 +17,40 @@ classifier = [
 ]
 
 [dependencies]
-openssl = "0.10.55"
-postgres = "0.19.0"
+openssl = { version = "0.10.57", features = ["vendored"] }
+postgres = "0.19.7"
 postgres-openssl = "0.5.0"
-rand = "0.8.0"
+rand = "0.8.5"
 serial_test = "2.0.0"
 synapse_compress_state = { path = "../", features = ["no-progress-bars"], default-features = false }
 env_logger = "0.10.0"
-log = "0.4.14"
-log-panics = "2.0.0"
-anyhow = "1.0.42"
+log = "0.4.20"
+log-panics = "2.1.0"
+anyhow = "1.0.75"
 
 # Needed for pyo3 support
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies.clap]
-version = "4.0.15"
+version = "4.4.2"
 features = ["cargo"]
 optional = true
 
 [dependencies.pyo3]
-version = "0.19.0"
+version = "0.19.2"
 features = ["extension-module"]
 optional = true
 
 [dependencies.pyo3-log]
-version = "0.8.2"
+version = "0.8.3"
 optional = true
 
 [dependencies.tikv-jemallocator]
-version = "0.5.0"
+version = "0.5.4"
 optional = true
 
 [features]
-default = ["clap", "jemalloc", "pyo3"]
+default = ["clap", "jemalloc"]
 jemalloc = ["tikv-jemallocator", "synapse_compress_state/jemalloc"]
 pyo3 = ["dep:pyo3", "dep:pyo3-log", "synapse_compress_state/pyo3"]
