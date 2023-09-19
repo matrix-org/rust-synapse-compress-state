@@ -29,12 +29,11 @@ jobs:
       - name: Inspect builder
         run: docker buildx inspect
 
-# Disabled while I wait for IT/SRE to grant perms for this token
-#       - name: Log in to DockerHub
-#         uses: docker/login-action@v2
-#         with:
-#           username: ${{ secrets.DOCKERHUB_USERNAME }}
-#           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Log in to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
       - name: Log in to GHCR
         uses: docker/login-action@v2
@@ -49,7 +48,7 @@ jobs:
         with:
           images: |
             ghcr.io/${{ github.repository }}
-#             docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}
+#             docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ github.event.repository.name }}
           flavor: |
             latest=false
           tags: |
