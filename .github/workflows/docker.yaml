@@ -48,7 +48,7 @@ jobs:
         with:
           images: |
             ghcr.io/${{ github.repository }}
-#             docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ github.event.repository.name }}
+            docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ github.event.repository.name }}
           flavor: |
             latest=false
           tags: |
