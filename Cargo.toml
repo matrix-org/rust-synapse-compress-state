@@ -13,16 +13,16 @@ name = "synapse_compress_state"
 required-features = ["clap"]
 
 [dependencies]
-indicatif = "0.17.0"
-openssl = "0.10.55"
-postgres = "0.19.0"
+indicatif = "0.17.6"
+openssl = "0.10.57"
+postgres = "0.19.7"
 postgres-openssl = "0.5.0"
-rand = "0.8.0"
-rayon = "1.3.0"
-string_cache = "0.8.0"
+rand = "0.8.5"
+rayon = "1.7.0"
+string_cache = "0.8.7"
 env_logger = "0.10.0"
-log = "0.4.14"
-log-panics = "2.0.0"
+log = "0.4.20"
+log-panics = "2.1.0"
 
 [dependencies.state-map]
 git = "https://github.com/matrix-org/rust-matrix-state-map"
@@ -32,25 +32,25 @@ git = "https://github.com/matrix-org/rust-matrix-state-map"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies.clap]
-version = "4.0.15"
+version = "4.4.2"
 features = ["cargo"]
 optional = true
 
 [dependencies.pyo3]
-version = "0.19.0"
+version = "0.19.2"
 features = ["extension-module"]
 optional = true
 
 [dependencies.pyo3-log]
-version = "0.8.2"
+version = "0.8.3"
 optional = true
 
 [dependencies.tikv-jemallocator]
-version = "0.5.0"
+version = "0.5.4"
 optional = true
 
 [features]
-default = ["clap", "jemalloc", "pyo3"]
+default = ["clap", "jemalloc"]
 jemalloc = ["tikv-jemallocator"]
 no-progress-bars = []
 pyo3 = ["dep:pyo3", "dep:pyo3-log"]
