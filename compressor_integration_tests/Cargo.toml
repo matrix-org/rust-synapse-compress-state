@@ -19,3 +19,4 @@ log = "0.4.20"
 
 [dependencies.state-map]
 git = "https://github.com/matrix-org/rust-matrix-state-map"
+rev = "211343e"

@@ -1203,7 +1203,7 @@ dependencies = [
 [[package]]
 name = "state-map"
 version = "0.1.0"
-source = "git+https://github.com/matrix-org/rust-matrix-state-map#211343e8dd8d14e8a4c5c6ab72b52589fdd37e27"
+source = "git+https://github.com/matrix-org/rust-matrix-state-map?rev=211343e#211343e8dd8d14e8a4c5c6ab72b52589fdd37e27"
 
 [[package]]
 name = "string_cache"
@@ -1266,7 +1266,7 @@ dependencies = [
 
 [[package]]
 name = "synapse_auto_compressor"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "anyhow",
  "clap",
