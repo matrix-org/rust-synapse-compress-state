@@ -35,10 +35,9 @@ jobs:
             target: aarch64
           - runner: ubuntu-latest
             target: armv7
-          - runner: ubuntu-latest
-            target: s390x
-          - runner: ubuntu-latest
-            target: ppc64le
+  # BEGIN EDITED SECTION #
+  # The `s390x` and `ppc64le` architectures have been removed as they are not supported.
+  # END EDITED SECTION #
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
