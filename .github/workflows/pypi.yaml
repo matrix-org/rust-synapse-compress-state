@@ -75,33 +75,10 @@ jobs:
         with:
           name: wheels-linux-${{ matrix.platform.target }}
           path: dist
-
-  windows:
-    runs-on: ${{ matrix.platform.runner }}
-    strategy:
-      matrix:
-        platform:
-          - runner: windows-latest
-            target: x64
-          - runner: windows-latest
-            target: x86
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-          architecture: ${{ matrix.platform.target }}
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.platform.target }}
-          args: --release --out dist --find-interpreter
-          sccache: 'true'
-      - name: Upload wheels
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-windows-${{ matrix.platform.target }}
-          path: dist
+  
+  # BEGIN EDITED SECTION #
+  # The `windows` job has been removed as it is not a supported platform.
+  # END EDITED SECTION #
 
   macos:
     runs-on: ${{ matrix.platform.runner }}
@@ -148,7 +125,10 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     if: "startsWith(github.ref, 'refs/tags/')"
-    needs: [linux, windows, macos, sdist]
+    # BEGIN EDITED SECTION #
+    # Note: The `windows` job was removed from this list.
+    needs: [linux, macos, sdist]
+    # END EDITED SECTION #
     steps:
       - uses: actions/download-artifact@v4
       - name: Publish to PyPI
