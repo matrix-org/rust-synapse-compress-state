@@ -76,6 +76,7 @@ jobs:
             fi
 
             export OPENSSL_INCLUDE_DIR=/usr/include/openssl
+            export OPENSSL_NO_VENDOR=1
 
             ls $OPENSSL_LIB_DIR
             ls $OPENSSL_INCLUDE_DIR
