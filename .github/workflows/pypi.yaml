@@ -75,6 +75,7 @@ jobs:
                 OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu
             fi
 
+            export OPENSSL_DIR="/usr/lib/ssl"
             export OPENSSL_INCLUDE_DIR=/usr/include/openssl
             export OPENSSL_NO_VENDOR=1
 
