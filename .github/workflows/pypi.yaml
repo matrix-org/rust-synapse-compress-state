@@ -55,6 +55,8 @@ jobs:
           # used to build the wheels.
           # Note: libatomic is necessary for the build to succeed.
           before-script-linux: |
+            set -ex
+
             # If we're running on rhel centos, install needed packages.
             if command -v yum &> /dev/null; then
                 yum update -y && yum install -y perl-core openssl openssl-devel pkgconfig libatomic
@@ -64,10 +66,26 @@ jobs:
                 if [[ ! -d "/usr/lib64" ]]; then
                     ln -s /usr/lib/libatomic.so.1 /usr/lib/libatomic.so
                 fi
+
+                OPENSSL_LIB_DIR=/usr/lib
             else
                 # If we're running on debian-based system.
                 apt update -y && apt-get install -y libssl-dev openssl pkg-config
+
+                OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu
             fi
+
+            export OPENSSL_INCLUDE_DIR=/usr/include/openssl
+
+            ls $OPENSSL_LIB_DIR
+            ls $OPENSSL_INCLUDE_DIR
+
+
+            echo "OpenSSL Lib Dir: $OPENSSL_LIB_DIR"
+            echo "OpenSSL Include Dir: $OPENSSL_INCLUDE_DIR"
+
+            pkg-config --list-all
+            pkg-config --libs --cflags openssl
           # END EDITED SECTION #
       - name: Upload wheels
         uses: actions/upload-artifact@v4
