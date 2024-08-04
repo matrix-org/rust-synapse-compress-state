@@ -14,7 +14,7 @@ postgres-openssl = "0.5.0"
 rand = "0.8.5"
 synapse_compress_state = { path = "../", features = ["no-progress-bars"] }
 synapse_auto_compressor = { path = "../synapse_auto_compressor/" }
-env_logger = "0.10.0"
+env_logger = "0.11.2"
 log = "0.4.20"
 
 [dependencies.state-map]
