@@ -32,10 +32,9 @@ This will install the relevant compressor tool into the activated virtual enviro
 ```python
 import synapse_auto_compressor
 
-synapse_auto_compressor.compress_state_events_table(
+synapse_auto_compressor.run_compression(
   db_url="postgresql://localhost/synapse",
   chunk_size=500,
-  default_levels="100,50,25",
   number_of_chunks=100
 )
 ```

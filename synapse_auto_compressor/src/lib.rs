@@ -8,11 +8,7 @@
 
 use anyhow::Result;
 #[cfg(feature = "pyo3")]
-use log::{error, LevelFilter};
-#[cfg(feature = "pyo3")]
-use pyo3::{
-    exceptions::PyRuntimeError, prelude::pymodule, types::PyModule, PyErr, PyResult, Python,
-};
+use pyo3::prelude::*;
 use std::str::FromStr;
 
 use synapse_compress_state::Level;
@@ -60,73 +56,86 @@ impl FromStr for LevelInfo {
 // PyO3 INTERFACE STARTS HERE
 #[cfg(feature = "pyo3")]
 #[pymodule]
-fn synapse_auto_compressor(_py: Python, m: &PyModule) -> PyResult<()> {
-    let _ = pyo3_log::Logger::default()
-        // don't send out anything lower than a warning from other crates
-        .filter(LevelFilter::Warn)
-        // don't log warnings from synapse_compress_state, the
-        // synapse_auto_compressor handles these situations and provides better
-        // log messages
-        .filter_target("synapse_compress_state".to_owned(), LevelFilter::Error)
-        // log info and above for the synapse_auto_compressor
-        .filter_target("synapse_auto_compressor".to_owned(), LevelFilter::Debug)
-        .install();
-    // ensure any panics produce error messages in the log
-    log_panics::init();
+mod synapse_auto_compressor {
+    use super::*;
+    use log::{error, info, LevelFilter};
+    use pyo3::exceptions::PyRuntimeError;
 
-    #[pyfn(m)]
-    #[pyo3(name = "compress_largest_rooms")]
-    fn compress_state_events_table(
-        py: Python,
-        db_url: String,
-        chunk_size: i64,
-        default_levels: String,
-        number_of_chunks: i64,
-    ) -> PyResult<()> {
-        // Stops the compressor from holding the GIL while running
-        py.allow_threads(|| {
-            _compress_state_events_table_body(db_url, chunk_size, default_levels, number_of_chunks)
-        })
-    }
+    #[pymodule_init]
+    fn init(_m: &Bound<'_, PyModule>) -> PyResult<()> {
+        let _ = pyo3_log::Logger::default()
+            // don't send out anything lower than a warning from other crates
+            .filter(LevelFilter::Warn)
+            // don't log warnings from synapse_compress_state, the
+            // synapse_auto_compressor handles these situations and provides better
+            // log messages
+            .filter_target("synapse_compress_state".to_owned(), LevelFilter::Error)
+            // log info and above for the synapse_auto_compressor
+            .filter_target("synapse_auto_compressor".to_owned(), LevelFilter::Debug)
+            .install();
 
-    // Not accessbile through Py03. It is a "private" function.
-    fn _compress_state_events_table_body(
-        db_url: String,
-        chunk_size: i64,
-        default_levels: String,
-        number_of_chunks: i64,
-    ) -> PyResult<()> {
-        // Announce the start of the program to the logs
-        log::info!("synapse_auto_compressor started");
+        // ensure any panics produce error messages in the log
+        log_panics::init();
 
-        // Parse the default_level string into a LevelInfo struct
-        let default_levels: LevelInfo = match default_levels.parse() {
-            Ok(l_sizes) => l_sizes,
-            Err(e) => {
-                return Err(PyErr::new::<PyRuntimeError, _>(format!(
-                    "Unable to parse level_sizes: {}",
-                    e
-                )))
-            }
-        };
-
-        // call compress_largest_rooms with the arguments supplied
-        let run_result = manager::compress_chunks_of_database(
-            &db_url,
-            chunk_size,
-            &default_levels.0,
-            number_of_chunks,
-        );
-
-        // (Note, need to do `{:?}` formatting to show error context)
-        // Don't log the context of errors but do use it in the PyRuntimeError
-        if let Err(e) = run_result {
-            error!("{}", e);
-            return Err(PyErr::new::<PyRuntimeError, _>(format!("{:?}", e)));
-        }
-
-        log::info!("synapse_auto_compressor finished");
         Ok(())
     }
-    Ok(())
+
+    /// Main entry point for python code
+    ///
+    /// Default arguments are equivalent to using the command line tool.
+    ///
+    /// No defaults are provided for `db_url`, `chunk_size` and
+    /// `number_of_chunks`, since these argument are mandatory.
+    #[pyfunction]
+    #[pyo3(signature = (
+        db_url, // has no default
+        chunk_size, // has no default
+        number_of_chunks, // has no default
+        default_levels = "100,50,25",
+    ))]
+    fn run_compression(
+        py: Python,
+        db_url: &str,
+        chunk_size: i64,
+        number_of_chunks: i64,
+        default_levels: &str,
+    ) -> PyResult<()> {
+        // Announce the start of the program to the logs
+        info!("synapse_auto_compressor started");
+
+        // Parse the default_level string into a LevelInfo struct
+        let default_levels = default_levels.parse::<LevelInfo>().map_err(|e| {
+            PyErr::new::<PyRuntimeError, _>(format!("Unable to parse level_sizes: {}", e))
+        })?;
+
+        // Stops the compressor from holding the GIL while running
+        py.allow_threads(|| {
+            // call compress_chunks_of_database with the arguments supplied
+            manager::compress_chunks_of_database(
+                db_url,
+                chunk_size,
+                &default_levels.0,
+                number_of_chunks,
+            )
+        })
+        .map_err(|e| {
+            error!("{}", e);
+            PyErr::new::<PyRuntimeError, _>(format!("{:?}", e))
+        })?;
+
+        info!("synapse_auto_compressor finished");
+        Ok(())
+    }
+
+    /// Deprecated entry point
+    #[pyfunction]
+    fn compress_largest_rooms(
+        py: Python,
+        db_url: &str,
+        chunk_size: i64,
+        default_levels: &str,
+        number_of_chunks: i64,
+    ) -> PyResult<()> {
+        run_compression(py, db_url, chunk_size, number_of_chunks, default_levels)
+    }
 }
