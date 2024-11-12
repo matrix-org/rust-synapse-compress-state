@@ -6,7 +6,7 @@
 //! to the database and uses these to enable it to incrementally work
 //! on space reductions.
 //!
-//! This binary calls manager::compress_largest_rooms() with the arguments
+//! This binary calls manager::compress_chunks_of_database() with the arguments
 //! provided. That is, it compresses (in batches) the top N rooms ranked by
 //! amount of "uncompressed" state. This is measured by the number of rows in
 //! the state_groups_state table.
@@ -149,7 +149,7 @@ fn main() {
     state_saving::create_tables_if_needed(&mut client)
         .unwrap_or_else(|e| panic!("Error occured while creating tables in database: {}", e));
 
-    // call compress_largest_rooms with the arguments supplied
+    // call compress_chunks_of_database with the arguments supplied
     // panic if an error is produced
     manager::compress_chunks_of_database(db_url, chunk_size, &default_levels.0, number_of_chunks)
         .unwrap();

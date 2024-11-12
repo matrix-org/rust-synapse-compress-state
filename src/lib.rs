@@ -22,7 +22,7 @@
 
 use log::{info, warn};
 #[cfg(feature = "pyo3")]
-use pyo3::{exceptions, prelude::*};
+use pyo3::prelude::*;
 
 #[cfg(feature = "clap")]
 use clap::{crate_authors, crate_description, crate_name, crate_version, Arg, Command};
@@ -745,89 +745,92 @@ impl Config {
     }
 }
 
-/// Access point for python code
-///
-/// Default arguments are equivalent to using the command line tool
-/// No default's are provided for db_url or room_id since these arguments
-/// are compulsory (so that new() act's like parse_arguments())
-#[cfg(feature = "pyo3")]
-#[allow(clippy::too_many_arguments)]
-#[pyfunction]
-#[pyo3(signature = (
-    // db_url has no default
-    db_url,
-
-    // room_id has no default
-    room_id,
-
-    output_file = None,
-    min_state_group = None,
-    groups_to_compress = None,
-    min_saved_rows = None,
-    max_state_group = None,
-    level_sizes = String::from("100,50,25"),
-
-    // have this default to true as is much worse to not have it if you need it
-    // than to have it and not need it
-    transactions = true,
-
-    graphs = false,
-    commit_changes = false,
-    verify = true,
-))]
-fn run_compression(
-    db_url: String,
-    room_id: String,
-    output_file: Option<String>,
-    min_state_group: Option<i64>,
-    groups_to_compress: Option<i64>,
-    min_saved_rows: Option<i32>,
-    max_state_group: Option<i64>,
-    level_sizes: String,
-    transactions: bool,
-    graphs: bool,
-    commit_changes: bool,
-    verify: bool,
-) -> PyResult<()> {
-    let config = Config::new(
-        db_url,
-        room_id,
-        output_file,
-        min_state_group,
-        groups_to_compress,
-        min_saved_rows,
-        max_state_group,
-        level_sizes,
-        transactions,
-        graphs,
-        commit_changes,
-        verify,
-    );
-    match config {
-        Err(e) => Err(PyErr::new::<exceptions::PyException, _>(e)),
-        Ok(config) => {
-            run(config);
-            Ok(())
-        }
-    }
-}
-
 /// Python module - "import synapse_compress_state" to use
 #[cfg(feature = "pyo3")]
 #[pymodule]
-fn synapse_compress_state(_py: Python, m: &PyModule) -> PyResult<()> {
-    let _ = pyo3_log::Logger::default()
-        // don't send out anything lower than a warning from other crates
-        .filter(log::LevelFilter::Warn)
-        // don't log warnings from synapse_compress_state, the synapse_auto_compressor handles these
-        // situations and provides better log messages
-        .filter_target("synapse_compress_state".to_owned(), log::LevelFilter::Debug)
-        .install();
-    // ensure any panics produce error messages in the log
-    log_panics::init();
+mod synapse_compress_state {
+    use super::*;
+    use log::LevelFilter;
+    use pyo3::exceptions::PyException;
 
-    m.add_function(wrap_pyfunction!(run_compression, m)?)?;
-    Ok(())
+    #[pymodule_init]
+    fn init(_m: &Bound<'_, PyModule>) -> PyResult<()> {
+        let _ = pyo3_log::Logger::default()
+            // don't send out anything lower than a warning from other crates
+            .filter(LevelFilter::Warn)
+            // don't log warnings from synapse_compress_state, the synapse_auto_compressor handles these
+            // situations and provides better log messages
+            .filter_target("synapse_compress_state".to_owned(), LevelFilter::Debug)
+            .install();
+
+        // ensure any panics produce error messages in the log
+        log_panics::init();
+
+        Ok(())
+    }
+
+    /// Main entry point
+    ///
+    /// Default arguments are equivalent to using the command line tool.
+    ///
+    /// No defaults are provided for `db_url` and `room_id` since these
+    /// arguments are mandatory.
+    #[allow(clippy::too_many_arguments)]
+    #[pyfunction]
+    #[pyo3(signature = (
+        db_url, // has no default
+        room_id, // has no default
+        output_file = None,
+        min_state_group = None,
+        groups_to_compress = None,
+        min_saved_rows = None,
+        max_state_group = None,
+        level_sizes = "100,50,25",
+
+        // have this default to true as is much worse to not have it if you need it
+        // than to have it and not need it
+        transactions = true,
+
+        graphs = false,
+        commit_changes = false,
+        verify = true,
+    ))]
+    fn run_compression(
+        py: Python,
+        db_url: String,
+        room_id: String,
+        output_file: Option<String>,
+        min_state_group: Option<i64>,
+        groups_to_compress: Option<i64>,
+        min_saved_rows: Option<i32>,
+        max_state_group: Option<i64>,
+        level_sizes: &str,
+        transactions: bool,
+        graphs: bool,
+        commit_changes: bool,
+        verify: bool,
+    ) -> PyResult<()> {
+        let config = Config::new(
+            db_url,
+            room_id,
+            output_file,
+            min_state_group,
+            groups_to_compress,
+            min_saved_rows,
+            max_state_group,
+            level_sizes.into(),
+            transactions,
+            graphs,
+            commit_changes,
+            verify,
+        )
+        .map_err(PyErr::new::<PyException, _>)?;
+
+        // Stops the compressor from holding the GIL while running
+        py.allow_threads(|| run(config));
+
+        Ok(())
+    }
 }
 
 // TESTS START HERE
