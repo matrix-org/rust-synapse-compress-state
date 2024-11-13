@@ -30,7 +30,7 @@ features = ["cargo"]
 optional = true
 
 [dependencies.pyo3]
-version = "0.22.2"
+version = "0.22.4"
 features = ["extension-module"]
 optional = true
 
