@@ -211,7 +211,7 @@ checksum = "d3fd119d74b830634cea2a0f58bbd0d54540518a14397557951e79340abc28c0"
 
 [[package]]
 name = "compressor_integration_tests"
-version = "0.1.0"
+version = "0.1.4"
 dependencies = [
  "env_logger",
  "log",
@@ -1227,7 +1227,7 @@ dependencies = [
 
 [[package]]
 name = "synapse_compress_state"
-version = "0.1.0"
+version = "0.1.4"
 dependencies = [
  "clap",
  "env_logger",

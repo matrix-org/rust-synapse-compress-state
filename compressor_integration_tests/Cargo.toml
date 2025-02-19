@@ -1,22 +1,25 @@
 [package]
 name = "compressor_integration_tests"
-version = "0.1.0"
-edition = "2018"
+authors = ["Azrenbeth"]
+version.workspace = true
+edition.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-string_cache = "0.8.7"
-serial_test = "2.0.0"
-openssl = "0.10.72"
-postgres = "0.19.7"
-postgres-openssl = "0.5.0"
-rand = "0.8.5"
-synapse_compress_state = { path = "../", features = ["no-progress-bars"] }
-synapse_auto_compressor = { path = "../synapse_auto_compressor/" }
-env_logger = "0.11.2"
-log = "0.4.20"
+env_logger.workspace = true
+log.workspace = true
+openssl.workspace = true
+postgres-openssl.workspace = true
+postgres.workspace = true
+rand.workspace = true
+serial_test.workspace = true
+state-map.workspace = true
+string_cache.workspace = true
 
-[dependencies.state-map]
-git = "https://github.com/matrix-org/rust-matrix-state-map"
-rev = "211343e"
+[dependencies.synapse_auto_compressor]
+path = "../synapse_auto_compressor/"
+
+[dependencies.synapse_compress_state]
+path = "../"
+features = ["no-progress-bars"]
