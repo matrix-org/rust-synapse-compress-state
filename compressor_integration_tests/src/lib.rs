@@ -98,7 +98,7 @@ pub fn empty_database() {
 /// Safely escape the strings in sql queries
 struct PGEscape<'a>(pub &'a str);
 
-impl<'a> fmt::Display for PGEscape<'a> {
+impl fmt::Display for PGEscape<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut delim = Cow::from("$$");
         while self.0.contains(&delim as &str) {
