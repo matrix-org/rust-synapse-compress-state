@@ -17,7 +17,7 @@ use log::{debug, trace};
 use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
 use postgres::{fallible_iterator::FallibleIterator, types::ToSql, Client};
 use postgres_openssl::MakeTlsConnector;
-use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use rand::distr::{Alphanumeric, SampleString};
 use std::{borrow::Cow, collections::BTreeMap, fmt, time::Duration};
 
 use crate::{compressor::Level, generate_sql};
@@ -470,12 +470,7 @@ impl fmt::Display for PGEscape<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut delim = Cow::from("$$");
         while self.0.contains(&delim as &str) {
-            let s: String = thread_rng()
-                .sample_iter(&Alphanumeric)
-                .take(10)
-                .map(char::from)
-                .collect();
-
+            let s = Alphanumeric.sample_string(&mut rand::rng(), 10);
             delim = format!("${}$", s).into();
         }
 
