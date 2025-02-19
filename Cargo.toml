@@ -19,11 +19,11 @@ log-panics = "2.1.0"
 openssl = "0.10.72"
 postgres = "0.19.7"
 postgres-openssl = "0.5.0"
-pyo3 = { version = "0.22.4", features = ["extension-module"] }
-pyo3-log = "0.11.0"
+pyo3 = { version = "0.23.4", features = ["extension-module"] }
+pyo3-log = "0.12.1"
 rand = "0.9.0"
 rayon = "1.7.0"
-serial_test = "2.0.0"
+serial_test = "3.2.0"
 state-map = { git = "https://github.com/matrix-org/rust-matrix-state-map", rev = "211343e" }
 string_cache = "0.8.7"
 tikv-jemallocator = "0.6.0"
