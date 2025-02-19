@@ -21,7 +21,7 @@ postgres = "0.19.7"
 postgres-openssl = "0.5.0"
 pyo3 = { version = "0.22.4", features = ["extension-module"] }
 pyo3-log = "0.11.0"
-rand = "0.8.5"
+rand = "0.9.0"
 rayon = "1.7.0"
 serial_test = "2.0.0"
 state-map = { git = "https://github.com/matrix-org/rust-matrix-state-map", rev = "211343e" }
