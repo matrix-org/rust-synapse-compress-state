@@ -1,5 +1,4 @@
-use std::collections::BTreeMap;
-use std::{fs::File, io::Write};
+use std::{collections::BTreeMap, fs::File, io::Write};
 
 use super::StateGroupEntry;
 

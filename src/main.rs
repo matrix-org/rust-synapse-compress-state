@@ -21,8 +21,7 @@
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 use log::LevelFilter;
-use std::env;
-use std::io::Write;
+use std::{env, io::Write};
 
 use synapse_compress_state as comp_state;
 

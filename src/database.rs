@@ -192,7 +192,7 @@ fn load_level_heads(client: &mut Client, level_info: &[Level]) -> BTreeMap<i64, 
 /// specific room within a certain range. These are appended onto the provided
 /// map.
 ///
-/// - Fetches the first [group] rows with group id after [min]
+/// - Fetches the first `[group]` rows with group id after `[min]`
 /// - Recursively searches for missing predecessors and adds those
 ///
 /// Returns with the state_group map and the id of the last group that was used
@@ -206,7 +206,6 @@ fn load_level_heads(client: &mut Client, level_info: &[Level]) -> BTreeMap<i64, 
 ///                             also requires groups_to_compress to be specified
 /// * 'max_group_found'     -   The last group to get from the database before stopping
 /// * 'state_group_map'     -   The map to populate with the entries from the database
-
 fn load_map_from_db(
     client: &mut Client,
     room_id: &str,
@@ -326,7 +325,7 @@ fn find_max_group(
 /// Fetch the entries in state_groups_state and immediate predecessors for
 /// a specific room.
 ///
-/// - Fetches first [groups_to_compress] rows with group id higher than min
+/// - Fetches first `[groups_to_compress]` rows with group id higher than min
 /// - Stores the group id, predecessor id and deltas into a map
 /// - returns map and maximum row that was considered
 ///
@@ -467,7 +466,7 @@ fn get_missing_from_db(
 /// Helper function that escapes the wrapped text when writing SQL
 pub struct PGEscape<'a>(pub &'a str);
 
-impl<'a> fmt::Display for PGEscape<'a> {
+impl fmt::Display for PGEscape<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut delim = Cow::from("$$");
         while self.0.contains(&delim as &str) {
