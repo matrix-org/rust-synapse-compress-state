@@ -422,7 +422,7 @@ fn generate_sql<'a>(
     new_map: &'a BTreeMap<i64, StateGroupEntry>,
     room_id: &'a str,
 ) -> impl Iterator<Item = String> + 'a {
-    old_map.iter().map(move |(sg, old_entry)| {
+    old_map.iter().filter_map(move |(sg, old_entry)| {
         let new_entry = &new_map[sg];
 
         // Check if the new map has a different entry for this state group
@@ -478,9 +478,9 @@ fn generate_sql<'a>(
                 sql.replace_range((sql.len() - 2).., ";\n");
             }
 
-            sql
+            Some(sql)
         } else {
-            String::new()
+            None
         }
     })
 }
