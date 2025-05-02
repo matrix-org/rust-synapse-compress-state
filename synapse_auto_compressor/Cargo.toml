@@ -1,46 +1,36 @@
 [package]
 name = "synapse_auto_compressor"
 authors = ["William Ashton"]
-version = "0.1.4"
-edition = "2018"
+version.workspace = true
+edition.workspace = true
 
 [[bin]]
 name = "synapse_auto_compressor"
 required-features = ["clap"]
 
 [dependencies]
-openssl = { version = "0.10.72", features = ["vendored"] }
-postgres = "0.19.7"
-postgres-openssl = "0.5.0"
-rand = "0.8.5"
-serial_test = "2.0.0"
-synapse_compress_state = { path = "../", features = ["no-progress-bars"], default-features = false }
-env_logger = "0.11.2"
-log = "0.4.20"
-log-panics = "2.1.0"
-anyhow = "1.0.75"
+anyhow.workspace = true
+clap = { workspace = true, optional = true }
+env_logger.workspace = true
+log-panics.workspace = true
+log.workspace = true
+openssl = { workspace = true, features = ["vendored"] }
+postgres-openssl.workspace = true
+postgres.workspace = true
+pyo3 = { workspace = true, optional = true }
+pyo3-log = { workspace = true, optional = true }
+rand.workspace = true
+serial_test.workspace = true
+tikv-jemallocator = { workspace = true, optional = true }
+
+[dependencies.synapse_compress_state]
+path = "../"
+default-features = false
+features = ["no-progress-bars"]
 
 # Needed for pyo3 support
 [lib]
 crate-type = ["cdylib", "rlib"]
-
-[dependencies.clap]
-version = "4.4.2"
-features = ["cargo"]
-optional = true
-
-[dependencies.pyo3]
-version = "0.22.4"
-features = ["extension-module"]
-optional = true
-
-[dependencies.pyo3-log]
-version = "0.11.0"
-optional = true
-
-[dependencies.tikv-jemallocator]
-version = "0.6.0"
-optional = true
 
 [features]
 default = ["clap", "jemalloc"]
