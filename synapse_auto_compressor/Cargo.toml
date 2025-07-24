@@ -14,7 +14,7 @@ clap = { workspace = true, optional = true }
 env_logger.workspace = true
 log-panics.workspace = true
 log.workspace = true
-openssl = { workspace = true, features = ["vendored"] }
+openssl.workspace = true
 postgres-openssl.workspace = true
 postgres.workspace = true
 pyo3 = { workspace = true, optional = true }
