@@ -38,9 +38,9 @@ jobs:
             type=sha,prefix=,format=long
             type=semver,pattern=v{{version}}
             type=semver,pattern=v{{major}}.{{minor}}
-      
+
       - name: Don't push to registry if this is a PR
-        if: "${{ github.event_name }}" = "pull_request"
+        if: github.event_name == 'pull_request'
         run: |
           echo "Not pushing the image to any container registry as this workflow is running on a pull request"
           exit 0
