@@ -7,8 +7,11 @@ on:
     tags: ["v*"]
     branches: [ main ]
   workflow_dispatch:
-  # Run on pull requests to test docker build.
-  # We explicitly do not push on pull requests (the job below is ended early).
+  # Run on pull requests so that the docker build is tested.
+  #
+  # We explicitly do not push on pull requests (see `if` conditionals and `push`
+  # attribute of `docker/build-push-action` below). This prevents us from filling
+  # up the container registries with in-progress builds.
   #
   # note: secrets will not be populated on pull requests from external authors.
   pull_request:
