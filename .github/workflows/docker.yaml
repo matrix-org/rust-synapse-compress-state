@@ -65,5 +65,11 @@ jobs:
           labels: "gitsha1=${{ github.sha }}"
           tags: "${{ steps.set-tag.outputs.tags }}"
           platforms: linux/amd64,linux/arm64
+          # Cache to GitHub Actions backend (which is evicted after 7 days).
+          # This doesn't require authentication (unlike a registry), so works
+          # well with external PRs.
+          #
+          # This backend does prevent workflows on other repos from accessing it,
+          # but that is not necessary right now.
           cache-from: type=gha
           cache-to: type=gha,mode=max
