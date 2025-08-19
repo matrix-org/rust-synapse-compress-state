@@ -183,7 +183,9 @@ pub fn compress_chunks_of_database(
             }
             chunks_processed += 1;
         } else {
-            bail!("Ran the compressor on a room that had no more work to do!")
+            // Room is already fully compressed, skip to next room
+            debug!("Room {} is already fully compressed, moving to next room", room_to_compress);
+            continue;
         }
     }
     info!(
