@@ -7,8 +7,11 @@ on:
     tags: ["v*"]
     branches: [ main ]
   workflow_dispatch:
-  # Run on pull requests to test docker build.
-  # We explicitly do not push on pull requests (the job below is ended early).
+  # Run on pull requests so that the docker build is tested.
+  #
+  # We explicitly do not push on pull requests (see `if` conditionals and `push`
+  # attribute of `docker/build-push-action` below). This prevents us from filling
+  # up the container registries with in-progress builds.
   #
   # note: secrets will not be populated on pull requests from external authors.
   pull_request:
@@ -38,20 +41,16 @@ jobs:
             type=sha,prefix=,format=long
             type=semver,pattern=v{{version}}
             type=semver,pattern=v{{major}}.{{minor}}
-      
-      - name: Don't push to registry if this is a PR
-        if: "${{ github.event_name }}" = "pull_request"
-        run: |
-          echo "Not pushing the image to any container registry as this workflow is running on a pull request"
-          exit 0
 
       - name: Log in to DockerHub
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
       - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
         with:
           registry: ghcr.io
@@ -61,9 +60,16 @@ jobs:
       - name: Build and push all platforms
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
-          push: true
+          # Always build, but don't push to container registries on PRs.
+          push: ${{ github.event_name != 'pull_request' }}
           labels: "gitsha1=${{ github.sha }}"
           tags: "${{ steps.set-tag.outputs.tags }}"
           platforms: linux/amd64,linux/arm64
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
+          # Cache to GitHub Actions backend (which is evicted after 7 days).
+          # This doesn't require authentication (unlike a registry), so works
+          # well with external PRs.
+          #
+          # This backend does prevent workflows on other repos from accessing it,
+          # but that is not necessary right now.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
