@@ -7,6 +7,7 @@ use crate::state_saving::{
 };
 use anyhow::{bail, Context, Result};
 use log::{debug, info, warn};
+use napi_derive::napi;
 use synapse_compress_state::{continue_run, ChunkStats, Level};
 
 /// Runs the compressor on a chunk of the room
@@ -112,6 +113,15 @@ pub fn run_compressor_on_room_chunk(
     Ok(Some(chunk_stats))
 }
 
+#[napi(constructor)]
+#[allow(dead_code)]
+pub struct CompressedChunkResult {
+    pub room_id: String,
+    pub original_num_rows: i32,
+    pub new_num_rows: i32,
+    pub skipped: bool,
+}
+
 /// Runs the compressor in chunks on rooms with the lowest uncompressed state group ids
 ///
 /// # Arguments
@@ -139,7 +149,7 @@ pub fn compress_chunks_of_database(
     chunk_size: i64,
     default_levels: &[Level],
     number_of_chunks: i64,
-) -> Result<()> {
+) -> Result<Vec<CompressedChunkResult>> {
     // connect to the database
     let mut client = connect_to_database(db_url)
         .with_context(|| format!("Failed to connect to database at {}", db_url))?;
@@ -149,6 +159,7 @@ pub fn compress_chunks_of_database(
     let mut skipped_chunks = 0;
     let mut rows_saved = 0;
     let mut chunks_processed = 0;
+    let mut results = vec![];
 
     while chunks_processed < number_of_chunks {
         let room_to_compress = get_next_room_to_compress(&mut client)
@@ -173,9 +184,21 @@ pub fn compress_chunks_of_database(
             if chunk_stats.commited {
                 let savings = chunk_stats.original_num_rows - chunk_stats.new_num_rows;
                 rows_saved += chunk_stats.original_num_rows - chunk_stats.new_num_rows;
+                results.push(CompressedChunkResult {
+                    room_id: room_to_compress.clone(),
+                    original_num_rows: chunk_stats.new_num_rows as i32,
+                    new_num_rows: chunk_stats.new_num_rows as i32,
+                    skipped: false,
+                });
                 debug!("Saved {} rows for room {}", savings, room_to_compress);
             } else {
                 skipped_chunks += 1;
+                results.push(CompressedChunkResult {
+                    room_id: room_to_compress.clone(),
+                    original_num_rows: 0,
+                    new_num_rows: 0,
+                    skipped: true,
+                });
                 debug!(
                     "Unable to make savings for room {}, skipping chunk",
                     room_to_compress
@@ -183,12 +206,13 @@ pub fn compress_chunks_of_database(
             }
             chunks_processed += 1;
         } else {
-            bail!("Ran the compressor on a room that had no more work to do!")
+            bail!("Ran the compressor on a room that had no more work to do!");
         }
     }
     info!(
         "Finished running compressor. Saved {} rows. Skipped {}/{} chunks",
         rows_saved, skipped_chunks, chunks_processed
     );
-    Ok(())
+    Ok(results)
 }
+

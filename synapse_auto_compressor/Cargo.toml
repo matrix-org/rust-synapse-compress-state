@@ -19,6 +19,11 @@ env_logger = "0.11.2"
 log = "0.4.20"
 log-panics = "2.1.0"
 anyhow = "1.0.75"
+napi = "3.0.0"
+napi-derive = "3.0.0"
+
+[build-dependencies]
+napi-build = "2"
 
 # Needed for pyo3 support
 [lib]

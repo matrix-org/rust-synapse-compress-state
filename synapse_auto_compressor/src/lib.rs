@@ -14,6 +14,7 @@ use std::str::FromStr;
 use synapse_compress_state::Level;
 
 pub mod manager;
+pub mod node;
 pub mod state_saving;
 
 /// Helper struct for parsing the `default_levels` argument.
@@ -99,7 +100,7 @@ mod synapse_auto_compressor {
         chunk_size: i64,
         number_of_chunks: i64,
         default_levels: &str,
-    ) -> PyResult<()> {
+    ) -> PyResult<Vec<CompressedChunkResult>> {
         // Announce the start of the program to the logs
         info!("synapse_auto_compressor started");
 
@@ -111,12 +112,12 @@ mod synapse_auto_compressor {
         // Stops the compressor from holding the GIL while running
         py.allow_threads(|| {
             // call compress_chunks_of_database with the arguments supplied
-            manager::compress_chunks_of_database(
+            let results = manager::compress_chunks_of_database(
                 db_url,
                 chunk_size,
                 &default_levels.0,
                 number_of_chunks,
-            )
+            );
         })
         .map_err(|e| {
             error!("{}", e);
@@ -124,7 +125,7 @@ mod synapse_auto_compressor {
         })?;
 
         info!("synapse_auto_compressor finished");
-        Ok(())
+        Ok(results?)
     }
 
     /// Deprecated entry point
