@@ -186,7 +186,7 @@ pub fn compress_chunks_of_database(
                 rows_saved += chunk_stats.original_num_rows - chunk_stats.new_num_rows;
                 results.push(CompressedChunkResult {
                     room_id: room_to_compress.clone(),
-                    original_num_rows: chunk_stats.new_num_rows as i32,
+                    original_num_rows: chunk_stats.original_num_rows as i32,
                     new_num_rows: chunk_stats.new_num_rows as i32,
                     skipped: false,
                 });
