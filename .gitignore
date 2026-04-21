@@ -5,3 +5,4 @@
 **.sql
 *.csv
 **.log
+.idea/
