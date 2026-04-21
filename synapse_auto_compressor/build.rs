@@ -1,4 +1,4 @@
 // Build NodeJS bindings
 fn main() {
-  napi_build::setup();
+    napi_build::setup();
 }

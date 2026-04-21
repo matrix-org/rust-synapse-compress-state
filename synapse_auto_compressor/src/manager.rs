@@ -215,4 +215,3 @@ pub fn compress_chunks_of_database(
     );
     Ok(results)
 }
-
