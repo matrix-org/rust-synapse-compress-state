@@ -38,7 +38,7 @@ pub mod node {
                 )
             });
 
-            Ok(results?)
+            results
         }
 
         fn resolve(&mut self, _: Env, output: Vec<CompressedChunkResult>) -> Result<Self::JsValue> {
