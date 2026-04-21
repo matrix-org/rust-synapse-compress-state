@@ -7,6 +7,14 @@ on:
     tags: ["v*"]
     branches: [ main ]
   workflow_dispatch:
+  # Run on pull requests so that the docker build is tested.
+  #
+  # We explicitly do not push on pull requests (see `if` conditionals and `push`
+  # attribute of `docker/build-push-action` below). This prevents us from filling
+  # up the container registries with in-progress builds.
+  #
+  # note: secrets will not be populated on pull requests from external authors.
+  pull_request:
 
 permissions:
   contents: read
@@ -17,24 +25,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Log in to DockerHub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_TOKEN }}
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
       - name: Calculate docker image tag
         id: set-tag
-        uses: docker/metadata-action@master
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
         with:
           images: |
             ghcr.io/${{ github.repository }}
@@ -47,12 +42,34 @@ jobs:
             type=semver,pattern=v{{version}}
             type=semver,pattern=v{{major}}.{{minor}}
 
-      - name: Build and push all platforms
-        uses: docker/build-push-action@v4
+      - name: Log in to DockerHub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
         with:
-          push: true
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push all platforms
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          # Always build, but don't push to container registries on PRs.
+          push: ${{ github.event_name != 'pull_request' }}
           labels: "gitsha1=${{ github.sha }}"
           tags: "${{ steps.set-tag.outputs.tags }}"
           platforms: linux/amd64,linux/arm64
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
+          # Cache to GitHub Actions backend (which is evicted after 7 days).
+          # This doesn't require authentication (unlike a registry), so works
+          # well with external PRs.
+          #
+          # This backend does prevent workflows on other repos from accessing it,
+          # but that is not necessary right now.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

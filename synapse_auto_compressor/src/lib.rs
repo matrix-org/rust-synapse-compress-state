@@ -1,3 +1,6 @@
+// FIXME: Rewrite argument lists to not trigger this lint.
+#![allow(clippy::doc_overindented_list_items)]
+
 //! This is a tool that uses the synapse_compress_state library to
 //! reduce the size of the synapse state_groups_state table in a postgres
 //! database.

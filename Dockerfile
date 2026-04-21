@@ -3,9 +3,9 @@
 # second stage only copies the binaries for the target architecture.
 # We leverage Zig and cargo-zigbuild for providing a cross-compilation-capable C compiler and linker.
 
-ARG RUSTC_VERSION=1.72.0
-ARG ZIG_VERSION=0.11.0
-ARG CARGO_ZIGBUILD_VERSION=0.17.1
+ARG RUSTC_VERSION=1.78.0
+ARG ZIG_VERSION=0.14.1
+ARG CARGO_ZIGBUILD_VERSION=0.20.1
 
 FROM --platform=${BUILDPLATFORM} docker.io/rust:${RUSTC_VERSION} AS builder
 
@@ -15,8 +15,8 @@ RUN cargo install --locked cargo-zigbuild@=${CARGO_ZIGBUILD_VERSION}
 
 # Download zig compiler for cross-compilation
 ARG ZIG_VERSION
-RUN curl -L "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-$(uname -m)-${ZIG_VERSION}.tar.xz" | tar -J -x -C /usr/local && \
-  ln -s "/usr/local/zig-linux-$(uname -m)-${ZIG_VERSION}/zig" /usr/local/bin/zig
+RUN curl -L "https://ziglang.org/download/${ZIG_VERSION}/zig-$(uname -m)-linux-${ZIG_VERSION}.tar.xz" | tar -J -x -C /usr/local && \
+  ln -s "/usr/local/zig-$(uname -m)-linux-${ZIG_VERSION}/zig" /usr/local/bin/zig
 
 # Install all cross-compilation targets
 ARG RUSTC_VERSION

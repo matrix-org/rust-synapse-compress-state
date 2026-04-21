@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// FIXME: Rewrite argument lists to not trigger this lint.
+#![allow(clippy::doc_overindented_list_items)]
+
 //! This is a tool that attempts to further compress state maps within a
 //! Synapse instance's database. Specifically, it aims to reduce the number of
 //! rows that a given room takes up in the `state_groups_state` table.
@@ -304,7 +307,6 @@ impl Config {
 /// # Arguments
 ///
 /// * `config: Config` - A Config struct that controlls the run
-
 pub fn run(mut config: Config) {
     // First we need to get the current state groups
     info!("Fetching state from DB for room '{}'...", config.room_id);
@@ -422,7 +424,7 @@ fn generate_sql<'a>(
     new_map: &'a BTreeMap<i64, StateGroupEntry>,
     room_id: &'a str,
 ) -> impl Iterator<Item = String> + 'a {
-    old_map.iter().map(move |(sg, old_entry)| {
+    old_map.iter().filter_map(move |(sg, old_entry)| {
         let new_entry = &new_map[sg];
 
         // Check if the new map has a different entry for this state group
@@ -478,9 +480,9 @@ fn generate_sql<'a>(
                 sql.replace_range((sql.len() - 2).., ";\n");
             }
 
-            sql
+            Some(sql)
         } else {
-            String::new()
+            None
         }
     })
 }
