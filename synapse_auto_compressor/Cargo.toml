@@ -14,8 +14,8 @@ clap = { workspace = true, optional = true }
 env_logger.workspace = true
 log-panics.workspace = true
 log.workspace = true
-napi = "3.0.0"
-napi-derive = "3.0.0"
+napi = { version = "3.0.0", optional = true }
+napi-derive = { version = "3.0.0", optional = true }
 openssl.workspace = true
 postgres-openssl.workspace = true
 postgres.workspace = true
@@ -40,4 +40,5 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = ["clap", "jemalloc"]
 jemalloc = ["tikv-jemallocator", "synapse_compress_state/jemalloc"]
+node = ["dep:napi", "dep:napi-derive"]
 pyo3 = ["dep:pyo3", "dep:pyo3-log", "synapse_compress_state/pyo3"]

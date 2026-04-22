@@ -23,9 +23,8 @@
     "pnpm": ">=8"
   },
   "scripts": {
-    "artifacts": "napi artifacts",
-    "build": "napi build --platform --release",
-    "build:debug": "napi build --platform"
+    "build": "napi build --features node --platform --release",
+    "build:debug": "napi build --features node --platform"
   },
   "devDependencies": {
     "@napi-rs/cli": "^3.2.0",

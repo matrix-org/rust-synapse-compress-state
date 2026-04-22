@@ -1,9 +1,17 @@
+#[cfg(feature = "node")]
 pub mod node {
-    use crate::manager::{compress_chunks_of_database, CompressedChunkResult};
+    use crate::manager::{compress_chunks_of_database};
     use crate::LevelInfo;
     use napi::bindgen_prelude::*;
-    use napi::{Error, Status};
     use napi_derive::napi;
+
+    #[napi(constructor)]
+    pub struct CompressedChunkResult {
+        pub room_id: String,
+        pub original_num_rows: i32,
+        pub new_num_rows: i32,
+        pub skipped: bool,
+    }
 
     pub struct AsyncCompressor {
         db_url: String,
@@ -25,20 +33,31 @@ pub mod node {
             let levels = levels
                 .parse::<LevelInfo>()
                 .unwrap_or_else(|e| panic!("Error while parsing default levels: {}", e));
-            let results = compress_chunks_of_database(
+            let chunk_results = match compress_chunks_of_database(
                 &self.db_url.as_str(),
                 self.chunk_size,
                 &levels.0,
                 self.number_of_chunks,
-            )
-            .map_err(|e| {
-                Error::new(
-                    Status::GenericFailure,
-                    format!("Failure while compressing database: {}", e),
-                )
-            });
+            ) {
+                Ok(val) => val,
+                Err(e) => {
+                    return Err(Error::new(
+                        Status::GenericFailure,
+                        format!("Failure while compressing database: {}", e),
+                    ))
+                }
+            };
 
-            results
+            let mut results = vec![];
+            for result in chunk_results.iter() {
+                results.push(CompressedChunkResult {
+                    room_id: result.room_id.clone(),
+                    original_num_rows: result.original_num_rows.clone(),
+                    new_num_rows: result.new_num_rows.clone(),
+                    skipped: result.skipped.clone(),
+                });
+            }
+            Ok(results)
         }
 
         fn resolve(&mut self, _: Env, output: Vec<CompressedChunkResult>) -> Result<Self::JsValue> {

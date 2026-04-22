@@ -7,7 +7,6 @@ use crate::state_saving::{
 };
 use anyhow::{bail, Context, Result};
 use log::{debug, info, warn};
-use napi_derive::napi;
 use synapse_compress_state::{continue_run, ChunkStats, Level};
 
 /// Runs the compressor on a chunk of the room
@@ -113,7 +112,6 @@ pub fn run_compressor_on_room_chunk(
     Ok(Some(chunk_stats))
 }
 
-#[napi(constructor)]
 #[allow(dead_code)]
 pub struct CompressedChunkResult {
     pub room_id: String,
