@@ -134,7 +134,7 @@ mod synapse_auto_compressor {
                 Ok(val) => val,
                 Err(e) => {
                     error!("{}", e);
-                    return Err(PyErr::new::<PyRuntimeError, _>(format!("{:?}", e)))
+                    return Err(PyErr::new::<PyRuntimeError, _>(format!("{:?}", e)));
                 }
             };
             for result in chunk_results.iter() {
@@ -148,9 +148,7 @@ mod synapse_auto_compressor {
             Ok(results)
         }) {
             Ok(val) => val,
-            Err(e) => {
-                return Err(PyErr::new::<PyRuntimeError, _>(format!("{:?}", e)))
-            }
+            Err(e) => return Err(PyErr::new::<PyRuntimeError, _>(format!("{:?}", e))),
         };
 
         info!("synapse_auto_compressor finished");

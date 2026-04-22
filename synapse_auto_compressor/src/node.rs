@@ -1,6 +1,6 @@
 #[cfg(feature = "node")]
 pub mod node {
-    use crate::manager::{compress_chunks_of_database};
+    use crate::manager::compress_chunks_of_database;
     use crate::LevelInfo;
     use napi::bindgen_prelude::*;
     use napi_derive::napi;
