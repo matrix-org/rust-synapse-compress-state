@@ -234,8 +234,8 @@ fn load_map_from_db(
     // we need to do this recursively until we don't find any more missing.
     loop {
         let mut missing_sgs: Vec<_> = state_group_map
-            .iter()
-            .filter_map(|(_sg, entry)| {
+            .values()
+            .filter_map(|entry| {
                 entry
                     .prev_state_group
                     .filter(|&prev_sg| !state_group_map.contains_key(&prev_sg))
