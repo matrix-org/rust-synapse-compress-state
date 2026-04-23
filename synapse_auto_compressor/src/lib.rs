@@ -17,6 +17,8 @@ use std::str::FromStr;
 use synapse_compress_state::Level;
 
 pub mod manager;
+#[cfg(feature = "node")]
+pub mod node;
 pub mod state_saving;
 
 /// Helper struct for parsing the `default_levels` argument.
