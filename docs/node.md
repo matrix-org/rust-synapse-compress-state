@@ -16,7 +16,7 @@ NodeJS 16+
 `$ cd synapse_auto_compressor`   
 
 2. Build and install the library  
-`$ yarn`
+`$ pnpm i && pnpm build`
 
 ## Automatic tool example
 
