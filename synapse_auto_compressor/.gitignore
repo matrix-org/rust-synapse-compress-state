@@ -1,0 +1,6 @@
+.pnp.*
+.yarn/
+synapse_auto_compressor.*
+index.d.ts
+index.js
+node_modules/

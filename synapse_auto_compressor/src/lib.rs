@@ -17,6 +17,8 @@ use std::str::FromStr;
 use synapse_compress_state::Level;
 
 pub mod manager;
+#[cfg(feature = "node")]
+pub mod node;
 pub mod state_saving;
 
 /// Helper struct for parsing the `default_levels` argument.
@@ -57,6 +59,16 @@ impl FromStr for LevelInfo {
 }
 
 // PyO3 INTERFACE STARTS HERE
+#[cfg(feature = "pyo3")]
+#[pyclass]
+#[allow(dead_code)]
+struct CompressedChunkResult {
+    room_id: String,
+    original_num_rows: i32,
+    new_num_rows: i32,
+    skipped: bool,
+}
+
 #[cfg(feature = "pyo3")]
 #[pymodule]
 mod synapse_auto_compressor {
@@ -102,7 +114,7 @@ mod synapse_auto_compressor {
         chunk_size: i64,
         number_of_chunks: i64,
         default_levels: &str,
-    ) -> PyResult<()> {
+    ) -> PyResult<Vec<CompressedChunkResult>> {
         // Announce the start of the program to the logs
         info!("synapse_auto_compressor started");
 
@@ -112,22 +124,37 @@ mod synapse_auto_compressor {
         })?;
 
         // Stops the compressor from holding the GIL while running
-        py.allow_threads(|| {
+        let results = match py.allow_threads(|| {
+            let mut results = vec![];
             // call compress_chunks_of_database with the arguments supplied
-            manager::compress_chunks_of_database(
+            let chunk_results = match manager::compress_chunks_of_database(
                 db_url,
                 chunk_size,
                 &default_levels.0,
                 number_of_chunks,
-            )
-        })
-        .map_err(|e| {
-            error!("{}", e);
-            PyErr::new::<PyRuntimeError, _>(format!("{:?}", e))
-        })?;
+            ) {
+                Ok(val) => val,
+                Err(e) => {
+                    error!("{}", e);
+                    return Err(PyErr::new::<PyRuntimeError, _>(format!("{:?}", e)));
+                }
+            };
+            for result in chunk_results.iter() {
+                results.push(CompressedChunkResult {
+                    room_id: result.room_id.clone(),
+                    original_num_rows: result.original_num_rows.clone(),
+                    new_num_rows: result.new_num_rows.clone(),
+                    skipped: result.skipped.clone(),
+                });
+            }
+            Ok(results)
+        }) {
+            Ok(val) => val,
+            Err(e) => return Err(PyErr::new::<PyRuntimeError, _>(format!("{:?}", e))),
+        };
 
         info!("synapse_auto_compressor finished");
-        Ok(())
+        Ok(results)
     }
 
     /// Deprecated entry point
@@ -138,7 +165,7 @@ mod synapse_auto_compressor {
         chunk_size: i64,
         default_levels: &str,
         number_of_chunks: i64,
-    ) -> PyResult<()> {
+    ) -> PyResult<Vec<CompressedChunkResult>> {
         run_compression(py, db_url, chunk_size, number_of_chunks, default_levels)
     }
 }
