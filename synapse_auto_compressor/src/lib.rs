@@ -59,15 +59,6 @@ impl FromStr for LevelInfo {
 }
 
 // PyO3 INTERFACE STARTS HERE
-#[cfg(feature = "pyo3")]
-#[pyclass]
-#[allow(dead_code)]
-struct CompressedChunkResult {
-    room_id: String,
-    original_num_rows: i32,
-    new_num_rows: i32,
-    skipped: bool,
-}
 
 #[cfg(feature = "pyo3")]
 #[pymodule]
@@ -114,7 +105,7 @@ mod synapse_auto_compressor {
         chunk_size: i64,
         number_of_chunks: i64,
         default_levels: &str,
-    ) -> PyResult<Vec<CompressedChunkResult>> {
+    ) -> PyResult<Vec<manager::CompressedChunkResult>> {
         // Announce the start of the program to the logs
         info!("synapse_auto_compressor started");
 
@@ -125,7 +116,6 @@ mod synapse_auto_compressor {
 
         // Stops the compressor from holding the GIL while running
         let results = match py.allow_threads(|| {
-            let mut results = vec![];
             // call compress_chunks_of_database with the arguments supplied
             let chunk_results = match manager::compress_chunks_of_database(
                 db_url,
@@ -139,15 +129,7 @@ mod synapse_auto_compressor {
                     return Err(PyErr::new::<PyRuntimeError, _>(format!("{:?}", e)));
                 }
             };
-            for result in chunk_results.iter() {
-                results.push(CompressedChunkResult {
-                    room_id: result.room_id.clone(),
-                    original_num_rows: result.original_num_rows.clone(),
-                    new_num_rows: result.new_num_rows.clone(),
-                    skipped: result.skipped.clone(),
-                });
-            }
-            Ok(results)
+            Ok(chunk_results)
         }) {
             Ok(val) => val,
             Err(e) => return Err(PyErr::new::<PyRuntimeError, _>(format!("{:?}", e))),
@@ -165,7 +147,7 @@ mod synapse_auto_compressor {
         chunk_size: i64,
         default_levels: &str,
         number_of_chunks: i64,
-    ) -> PyResult<Vec<CompressedChunkResult>> {
+    ) -> PyResult<Vec<manager::CompressedChunkResult>> {
         run_compression(py, db_url, chunk_size, number_of_chunks, default_levels)
     }
 }

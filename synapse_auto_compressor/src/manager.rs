@@ -7,6 +7,10 @@ use crate::state_saving::{
 };
 use anyhow::{bail, Context, Result};
 use log::{debug, info, warn};
+#[cfg(feature = "node")]
+use napi_derive::napi;
+#[cfg(feature = "pyo3")]
+use pyo3::pyclass;
 use synapse_compress_state::{continue_run, ChunkStats, Level};
 
 /// Runs the compressor on a chunk of the room
@@ -112,6 +116,8 @@ pub fn run_compressor_on_room_chunk(
     Ok(Some(chunk_stats))
 }
 
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "node", napi(constructor))]
 #[allow(dead_code)]
 pub struct CompressedChunkResult {
     pub room_id: String,

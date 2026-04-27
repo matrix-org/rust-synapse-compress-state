@@ -1,17 +1,9 @@
 #[cfg(feature = "node")]
 pub mod node {
-    use crate::manager::compress_chunks_of_database;
+    use crate::manager::{compress_chunks_of_database, CompressedChunkResult};
     use crate::LevelInfo;
     use napi::bindgen_prelude::*;
     use napi_derive::napi;
-
-    #[napi(constructor)]
-    pub struct CompressedChunkResult {
-        pub room_id: String,
-        pub original_num_rows: i32,
-        pub new_num_rows: i32,
-        pub skipped: bool,
-    }
 
     pub struct AsyncCompressor {
         db_url: String,
@@ -33,7 +25,7 @@ pub mod node {
             let levels = levels
                 .parse::<LevelInfo>()
                 .unwrap_or_else(|e| panic!("Error while parsing default levels: {}", e));
-            let chunk_results = match compress_chunks_of_database(
+            let results = match compress_chunks_of_database(
                 &self.db_url.as_str(),
                 self.chunk_size,
                 &levels.0,
@@ -47,16 +39,6 @@ pub mod node {
                     ))
                 }
             };
-
-            let mut results = vec![];
-            for result in chunk_results.iter() {
-                results.push(CompressedChunkResult {
-                    room_id: result.room_id.clone(),
-                    original_num_rows: result.original_num_rows.clone(),
-                    new_num_rows: result.new_num_rows.clone(),
-                    skipped: result.skipped.clone(),
-                });
-            }
             Ok(results)
         }
 
