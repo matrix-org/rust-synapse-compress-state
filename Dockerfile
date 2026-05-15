@@ -3,7 +3,7 @@
 # second stage only copies the binaries for the target architecture.
 # We leverage Zig and cargo-zigbuild for providing a cross-compilation-capable C compiler and linker.
 
-ARG RUSTC_VERSION=1.78.0
+ARG RUSTC_VERSION=1.95.0
 ARG ZIG_VERSION=0.14.1
 ARG CARGO_ZIGBUILD_VERSION=0.20.1
 
