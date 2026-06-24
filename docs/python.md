@@ -4,7 +4,8 @@ Both the automatic and manual tools use PyO3 to allow the compressor
 to be run from Python. 
 
 To see any output from the tools, logging must be setup in Python before
-the compressor is run.
+the compressor is run. You can also inspect the returned list of chunks (rooms)
+for information taken on them.
 
 ## Setting things up
 

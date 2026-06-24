@@ -1,0 +1,33 @@
+{
+  "name": "synapse_auto_compressor",
+  "version": "0.1.4",
+  "description": "A tool to compress some state in a Synapse instance's database",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/matrix-org/rust-synapse-compress-state.git"
+  },
+  "license": "Apache-2.0",
+  "files": [
+    "index.d.ts",
+    "index.js"
+  ],
+  "napi": {
+    "binaryName": "synapse_auto_compressor",
+    "targets": [
+      "x86_64-unknown-linux-gnu"
+    ]
+  },
+  "engines": {
+    "node": ">= 12.22.0 < 13 || >= 14.17.0 < 15 || >= 15.12.0 < 16 || >= 16.0.0",
+    "pnpm": ">=8"
+  },
+  "scripts": {
+    "build": "napi build --features node --platform --release",
+    "build:debug": "napi build --features node --platform"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3.6.2",
+    "typescript": "^6.0.0"
+  }
+}
