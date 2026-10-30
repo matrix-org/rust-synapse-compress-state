@@ -667,7 +667,11 @@ fn check_that_maps_match(
 /// Gets the full state for a given group from the map (of deltas)
 fn collapse_state_maps(map: &BTreeMap<i64, StateGroupEntry>, state_group: i64) -> StateMap<Atom> {
     if !map.contains_key(&state_group) {
-        panic!("Missing {}", state_group);
+        warn!(
+            "Missing {}: state group absent from map, treating as empty",
+            state_group
+        );
+        return StateMap::new();
     }
 
     let mut entry = &map[&state_group];
@@ -676,10 +680,14 @@ fn collapse_state_maps(map: &BTreeMap<i64, StateGroupEntry>, state_group: i64) -
     let mut stack = vec![state_group];
 
     while let Some(prev_state_group) = entry.prev_state_group {
-        stack.push(prev_state_group);
         if !map.contains_key(&prev_state_group) {
-            panic!("Missing {}", prev_state_group);
+            warn!(
+                "Missing {}: prev_state_group absent from map, ending delta chain",
+                prev_state_group
+            );
+            break;
         }
+        stack.push(prev_state_group);
         entry = &map[&prev_state_group];
     }
 
@@ -954,8 +962,7 @@ mod lib_tests {
     }
 
     #[test]
-    #[should_panic(expected = "Missing")]
-    fn collapse_state_maps_panics_if_pred_not_in_map() {
+    fn collapse_state_maps_ends_chain_if_pred_not_in_map() {
         let mut initial: BTreeMap<i64, StateGroupEntry> = BTreeMap::new();
         let mut prev = Some(14); // note will not be in map
 
@@ -985,7 +992,15 @@ mod lib_tests {
             prev = Some(i)
         }
 
-        collapse_state_maps(&initial, 0);
+        // the missing predecessor terminates the chain, so only the
+        // state of group 0 itself is returned
+        let result_state = collapse_state_maps(&initial, 0);
+
+        let mut expected_state: StateMap<Atom> = StateMap::new();
+        expected_state.insert("node", "is", "0".into());
+        expected_state.insert("group", "0", "seen".into());
+
+        assert_eq!(result_state, expected_state);
     }
 
     #[test]
